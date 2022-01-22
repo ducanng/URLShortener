@@ -3,9 +3,11 @@ package store
 import (
 	"database/sql"
 	"fmt"
-	_ "github.com/lib/pq"
+
 	"url-shortener/base62"
 	"url-shortener/shorten"
+
+	_ "github.com/lib/pq"
 )
 
 const (
@@ -32,21 +34,22 @@ func InitalizeStore() *sql.DB {
 // Save id, url short, url long to db
 func SaveURL(entry shorten.URLEntry) {
 	db := InitalizeStore()
-	sqlStatement := `INSERT INTO urlshortener (id, urloriginal, urlshort, create_at) VALUES ($1, $2, $3, $4)`
-	_, err := db.Exec(sqlStatement, entry.Id, entry.OriginalURL, entry.ShortenURL, entry.CreateAt)
+	sqlStatement := `INSERT INTO urlshortener (id, urloriginal, urlshort, clicks, create_at, update_at) 
+						VALUES ($1, $2, $3, $4, $5, $6)`
+	_, err := db.Exec(sqlStatement, entry.Id, entry.OriginalURL, entry.ShortenURL, entry.Clicks, entry.CreateAt, entry.UpdateAt)
 	if err != nil {
 		panic(fmt.Sprintf("Failed saving url | Error: %v - shortUrl: %s - originalUrl: %s\n", err, entry.ShortenURL, entry.OriginalURL))
 	}
 	fmt.Printf("Saved shortUrl: %s - originalUrl: %s\n", entry.ShortenURL, entry.OriginalURL)
 	defer db.Close()
 }
-// Get id, short url , long url from db
+// Get data from db
 func GetURLEntry(longurl string) shorten.URLEntry {
 	var urlentry shorten.URLEntry
 	db := InitalizeStore()
 	rows := db.QueryRow("SELECT * FROM urlshortener WHERE urloriginal = $1", longurl)
 	//Scan copies the columns from the matched row into the values pointed at by dest
-	err := rows.Scan(&urlentry.Id, &urlentry.OriginalURL, &urlentry.ShortenURL, &urlentry.CreateAt)
+	err := rows.Scan(&urlentry.Id, &urlentry.OriginalURL, &urlentry.ShortenURL, &urlentry.Clicks, &urlentry.CreateAt, &urlentry.UpdateAt)
 	if err != nil {
 		panic(fmt.Sprintf("Failed Retrieve Initial Url | Error: %v\n", err))
 	}
@@ -103,13 +106,32 @@ func DeleteShortURL(key uint64) bool{
 	return true
 }
 
-func UpdateURL(key uint64, updateUrlEntry shorten.URLEntry) bool {
+func UpdateURL(updateUrlEntry shorten.URLEntry) bool {
 	db := InitalizeStore()
-	sqlStatement := `UPDATE urlshortener SET urloriginal = $2, create_at = $3 WHERE id = $1`
-	res, err := db.Exec(sqlStatement, key, updateUrlEntry.OriginalURL, updateUrlEntry.CreateAt)
+	sqlStatement := `UPDATE urlshortener SET urloriginal = $2, clicks = $3, update_at = $4 WHERE id = $1`
+	res, err := db.Exec(sqlStatement, updateUrlEntry.Id, updateUrlEntry.OriginalURL, updateUrlEntry.Clicks, updateUrlEntry.UpdateAt)
 	if err != nil {
 		panic(fmt.Sprintf("Failed Updating Url | Error: %v - shortUrl: %s - originalUrl: %s\n", err, updateUrlEntry.ShortenURL, updateUrlEntry.OriginalURL))
+	}
+	count, err := res.RowsAffected()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Print(count) // 0 : update failed , 1 : update successful
+	if count == 0 {
+		fmt.Println(" : Update failed")
 		return false
+	}
+	fmt.Println(" : Update successful")
+	return true
+}
+
+func UpdateCounterLink(updateUrlEntry shorten.URLEntry) bool {
+	db := InitalizeStore()
+	sqlStatement := `UPDATE urlshortener SET clicks = $2 WHERE id = $1`
+	res, err := db.Exec(sqlStatement, updateUrlEntry.Id, updateUrlEntry.Clicks)
+	if err != nil {
+		panic(fmt.Sprintf("Failed Updating Clicks | Error: %v", err))
 	}
 	count, err := res.RowsAffected()
 	if err != nil {
