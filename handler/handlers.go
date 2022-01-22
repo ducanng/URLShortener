@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -21,6 +22,17 @@ type UrlCreationRequest struct {
 //Home Page
 func Home(w http.ResponseWriter, _ *http.Request)  {
 	sendResponse(w, http.StatusOK, map[string]string{"message": "Welcome to URL shortener"})
+}
+
+func Set(id uint64, long string, short string, clicks uint,create time.Time, update time.Time) shorten.URLEntry {
+	return shorten.URLEntry{
+		Id: id,
+		OriginalURL: long,
+		ShortenURL: short,
+		Clicks: clicks,
+		CreateAt: create,
+		UpdateAt: update,
+	}
 }
 //Create short link
 func CreateShortUrl(w http.ResponseWriter, r *http.Request) {
@@ -42,16 +54,24 @@ func CreateShortUrl(w http.ResponseWriter, r *http.Request) {
 		urlshortener = store.GetURLEntry(myurl.LongUrl)
 	} else {
 		shorurl := shorten.GenerateShortLink()
-		urlshortener.ShortenURL = prefixLink + shorurl
-		urlshortener.Id = base62.Decode(shorurl)
-		urlshortener.OriginalURL = myurl.LongUrl
+
 		//returns the current local time.
 		loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
-		urlshortener.CreateAt = time.Now().In(loc)
+		timeNow := time.Now().In(loc)
+
+		urlshortener = Set(base62.Decode(shorurl),myurl.LongUrl, prefixLink + shorurl, 0, timeNow, timeNow)
 		store.SaveURL(urlshortener)
 	}
 	sendResponse(w, http.StatusOK, urlshortener)
 
+}
+func LinkCounter(entry shorten.URLEntry) {
+	entry.Clicks++
+	err := store.UpdateCounterLink(entry)
+	if err == false {
+		fmt.Println("Update failed")
+	}
+	fmt.Println("Update successful")
 }
 // Redirect link
 func HandleShortUrlRedirect(w http.ResponseWriter, r *http.Request) {
@@ -65,6 +85,8 @@ func HandleShortUrlRedirect(w http.ResponseWriter, r *http.Request) {
 		respondWithError(w, http.StatusNotFound, "Not found")
 		return
 	}
+	urlEntry := store.GetURLEntry(urlCreationRequest.LongUrl)
+	LinkCounter(urlEntry)
 	http.Redirect(w, r, urlCreationRequest.LongUrl, http.StatusSeeOther)
 }
 // Delete short link
@@ -80,7 +102,7 @@ func DeleteShortUrl(w http.ResponseWriter, r *http.Request)  {
 		sendResponse(w, http.StatusBadRequest, map[string]string{"message": "delete failed"})
 	}
 }
-//Update short link
+//Update a new long url for shor url
 func UpdateUrl(w http.ResponseWriter, r *http.Request)  {
 	params := mux.Vars(r)
 	shortUrl := params["urlshorten"]
@@ -93,14 +115,13 @@ func UpdateUrl(w http.ResponseWriter, r *http.Request)  {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-
-	updateUrlEntry.OriginalURL = urlCreationRequest.LongUrl
-	updateUrlEntry.ShortenURL = prefixLink + shortUrl
-	updateUrlEntry.Id = base62.Decode(shortUrl)
+	id := base62.Decode(shortUrl)
+	longurl := store.GetLongURL(shortUrl)
+	urlEntry := store.GetURLEntry(longurl)
 	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
-	updateUrlEntry.CreateAt = time.Now().In(loc)
-
-	check := store.UpdateURL(updateUrlEntry.Id, updateUrlEntry)
+	timeNow := time.Now().In(loc)
+	updateUrlEntry = Set(id, urlCreationRequest.LongUrl, prefixLink + shortUrl, 0, urlEntry.CreateAt, timeNow)
+	check := store.UpdateURL(updateUrlEntry)
 	if check == true {
 		sendResponse(w, http.StatusOK, map[string]string{"message": "update successful"})
 	} else {
