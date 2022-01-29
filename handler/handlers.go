@@ -77,6 +77,7 @@ func LinkCounter(entry shorten.URLEntry) {
 func HandleShortUrlRedirect(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	shortPath := params["urlshorten"]
+	fmt.Println(shortPath)
 
 	var urlCreationRequest UrlCreationRequest
 
@@ -88,6 +89,22 @@ func HandleShortUrlRedirect(w http.ResponseWriter, r *http.Request) {
 	urlEntry := store.GetURLEntry(urlCreationRequest.LongUrl)
 	LinkCounter(urlEntry)
 	http.Redirect(w, r, urlCreationRequest.LongUrl, http.StatusSeeOther)
+}
+// Get info url entry
+func GetURLEntry(w http.ResponseWriter, r *http.Request)  {
+	params := mux.Vars(r)
+	shortPath := params["urlshorten"]
+	fmt.Println(shortPath)
+	var urlCreationRequest UrlCreationRequest
+
+	urlCreationRequest.LongUrl = store.GetLongURL(shortPath)
+	if urlCreationRequest.LongUrl == "" {
+		respondWithError(w, http.StatusNotFound, "Not found")
+		return
+	}
+	urlEntry := store.GetURLEntry(urlCreationRequest.LongUrl)
+
+	sendResponse(w, http.StatusOK, urlEntry)
 }
 // Delete short link
 func DeleteShortUrl(w http.ResponseWriter, r *http.Request)  {
@@ -136,11 +153,10 @@ func isValidURL(toTest string) bool {
 	}
 	return true
 }
-
+// respond
 func respondWithError(w http.ResponseWriter, code int, message string) {
 	sendResponse(w, code, map[string]string{"error": message})
 }
-
 func sendResponse(w http.ResponseWriter, code int, payload interface{}) {
 	response, _ := json.Marshal(payload)
 	w.Header().Set("Content-Type", "application/json")

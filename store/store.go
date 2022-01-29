@@ -64,7 +64,7 @@ func GetLongURL(shorturl string) string {
 	rows := db.QueryRow("SELECT urloriginal FROM urlshortener WHERE id = $1", key)
 	err := rows.Scan(&long) //Scan copies the columns from the matched row into the values pointed at by dest
 	if err != nil {
-		panic(fmt.Sprintf("Failed Retrieve Url | Error: %v - shortUrl: %s\n", err, shorturl))
+		fmt.Printf("Failed Retrieve Url | Error: %v - shortUrl: %s\n", err, shorturl)
 	}
 	defer db.Close()
 	return long
@@ -139,9 +139,9 @@ func UpdateCounterLink(updateUrlEntry shorten.URLEntry) bool {
 	}
 	fmt.Print(count) // 0 : update failed , 1 : update successful
 	if count == 0 {
-		fmt.Println(" : Update failed")
+		fmt.Println(" : Update failed in db")
 		return false
 	}
-	fmt.Println(" : Update successful")
+	fmt.Println(" : Update successful in db")
 	return true
 }
