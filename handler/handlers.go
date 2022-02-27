@@ -19,21 +19,23 @@ var prefixLink string = "http://localhost:8080/"
 type UrlCreationRequest struct {
 	LongUrl string `json:"long_url"`
 }
+
 //Home Page
-func Home(w http.ResponseWriter, _ *http.Request)  {
+func Home(w http.ResponseWriter, _ *http.Request) {
 	sendResponse(w, http.StatusOK, map[string]string{"message": "Welcome to URL shortener"})
 }
 
-func Set(id uint64, long string, short string, clicks uint,create time.Time, update time.Time) shorten.URLEntry {
+func Set(id uint64, long string, short string, clicks uint, create time.Time, update time.Time) shorten.URLEntry {
 	return shorten.URLEntry{
-		Id: id,
+		Id:          id,
 		OriginalURL: long,
-		ShortenURL: short,
-		Clicks: clicks,
-		CreateAt: create,
-		UpdateAt: update,
+		ShortenURL:  short,
+		Clicks:      clicks,
+		CreateAt:    create,
+		UpdateAt:    update,
 	}
 }
+
 //Create short link
 func CreateShortUrl(w http.ResponseWriter, r *http.Request) {
 	var myurl UrlCreationRequest
@@ -59,7 +61,7 @@ func CreateShortUrl(w http.ResponseWriter, r *http.Request) {
 		loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
 		timeNow := time.Now().In(loc)
 
-		urlshortener = Set(base62.Decode(shorurl),myurl.LongUrl, prefixLink + shorurl, 0, timeNow, timeNow)
+		urlshortener = Set(base62.Decode(shorurl), myurl.LongUrl, prefixLink+shorurl, 0, timeNow, timeNow)
 		store.SaveURL(urlshortener)
 	}
 	sendResponse(w, http.StatusOK, urlshortener)
@@ -73,6 +75,7 @@ func LinkCounter(entry shorten.URLEntry) {
 	}
 	fmt.Println("Update successful")
 }
+
 // Redirect link
 func HandleShortUrlRedirect(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
@@ -90,8 +93,9 @@ func HandleShortUrlRedirect(w http.ResponseWriter, r *http.Request) {
 	LinkCounter(urlEntry)
 	http.Redirect(w, r, urlCreationRequest.LongUrl, http.StatusSeeOther)
 }
+
 // Get info url entry
-func GetURLEntry(w http.ResponseWriter, r *http.Request)  {
+func GetURLEntry(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	shortPath := params["urlshorten"]
 	fmt.Println(shortPath)
@@ -106,8 +110,9 @@ func GetURLEntry(w http.ResponseWriter, r *http.Request)  {
 
 	sendResponse(w, http.StatusOK, urlEntry)
 }
+
 // Delete short link
-func DeleteShortUrl(w http.ResponseWriter, r *http.Request)  {
+func DeleteShortUrl(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	shortPath := params["urlshorten"]
 
@@ -119,8 +124,9 @@ func DeleteShortUrl(w http.ResponseWriter, r *http.Request)  {
 		sendResponse(w, http.StatusBadRequest, map[string]string{"message": "delete failed"})
 	}
 }
+
 //Update a new long url for shor url
-func UpdateUrl(w http.ResponseWriter, r *http.Request)  {
+func UpdateUrl(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	shortUrl := params["urlshorten"]
 
@@ -137,7 +143,7 @@ func UpdateUrl(w http.ResponseWriter, r *http.Request)  {
 	urlEntry := store.GetURLEntry(longurl)
 	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
 	timeNow := time.Now().In(loc)
-	updateUrlEntry = Set(id, urlCreationRequest.LongUrl, prefixLink + shortUrl, 0, urlEntry.CreateAt, timeNow)
+	updateUrlEntry = Set(id, urlCreationRequest.LongUrl, prefixLink+shortUrl, 0, urlEntry.CreateAt, timeNow)
 	check := store.UpdateURL(updateUrlEntry)
 	if check == true {
 		sendResponse(w, http.StatusOK, map[string]string{"message": "update successful"})
@@ -145,6 +151,7 @@ func UpdateUrl(w http.ResponseWriter, r *http.Request)  {
 		sendResponse(w, http.StatusBadRequest, map[string]string{"message": "update failed"})
 	}
 }
+
 // Check url
 func isValidURL(toTest string) bool {
 	_, err := url.ParseRequestURI(toTest)
@@ -153,6 +160,7 @@ func isValidURL(toTest string) bool {
 	}
 	return true
 }
+
 // respond
 func respondWithError(w http.ResponseWriter, code int, message string) {
 	sendResponse(w, code, map[string]string{"error": message})
