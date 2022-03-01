@@ -58,8 +58,7 @@ func CreateShortUrl(w http.ResponseWriter, r *http.Request) {
 		shorurl := shorten.GenerateShortLink()
 
 		//returns the current local time.
-		loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
-		timeNow := time.Now().In(loc)
+		timeNow := time.Now().UTC()
 
 		urlshortener = Set(base62.Decode(shorurl), myurl.LongUrl, prefixLink+shorurl, 0, timeNow, timeNow)
 		store.SaveURL(urlshortener)
@@ -98,7 +97,6 @@ func HandleShortUrlRedirect(w http.ResponseWriter, r *http.Request) {
 func GetURLEntry(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	shortPath := params["urlshorten"]
-	fmt.Println(shortPath)
 	var urlCreationRequest UrlCreationRequest
 
 	urlCreationRequest.LongUrl = store.GetLongURL(shortPath)
@@ -107,7 +105,7 @@ func GetURLEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	urlEntry := store.GetURLEntry(urlCreationRequest.LongUrl)
-
+	fmt.Printf("Found")
 	sendResponse(w, http.StatusOK, urlEntry)
 }
 
@@ -138,13 +136,14 @@ func UpdateUrl(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
 	id := base62.Decode(shortUrl)
 	longurl := store.GetLongURL(shortUrl)
 	urlEntry := store.GetURLEntry(longurl)
-	loc, _ := time.LoadLocation("Asia/Ho_Chi_Minh")
-	timeNow := time.Now().In(loc)
+	timeNow := time.Now().UTC()
 	updateUrlEntry = Set(id, urlCreationRequest.LongUrl, prefixLink+shortUrl, 0, urlEntry.CreateAt, timeNow)
 	check := store.UpdateURL(updateUrlEntry)
+
 	if check == true {
 		sendResponse(w, http.StatusOK, map[string]string{"message": "update successful"})
 	} else {

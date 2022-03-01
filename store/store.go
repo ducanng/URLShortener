@@ -10,18 +10,21 @@ import (
 	_ "github.com/lib/pq"
 )
 
-const (
-	host     = "127.0.0.1"
-	port     = 5432
-	user     = "root"
-	password = "secret"
-	dbname   = "postgres"
-)
+// const (
+// 	host     = "localhost"
+// 	port     = 2345
+// 	user     = "postgres"
+// 	password = "secret"
+// 	dbname   = "postgres"
+// )
 
 // Connect postgresql
 func InitalizeStore() *sql.DB {
-	psqlInfo := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable", host, port, user, password, dbname)
-	db, err := sql.Open("postgres", psqlInfo)
+	// psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
+	// 	"password=%s dbname=%s sslmode=disable",
+	// 	host, port, user, password, dbname)
+	connStr := "postgresql://postgres:secret@host.docker.internal:2345/postgres?sslmode=disable"
+	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		panic(err)
 	}
@@ -30,7 +33,6 @@ func InitalizeStore() *sql.DB {
 		panic(err)
 	}
 	return db
-
 }
 
 // Save id, url short, url long to db

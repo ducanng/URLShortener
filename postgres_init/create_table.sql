@@ -10,6 +10,4 @@ create table if not exists urlshortener
 	update_at timestamp not null
 );
 
-/*alter table urlshortener owner to postgres;*/
-
-
+/*alter table urlshortener owner to postgres;
