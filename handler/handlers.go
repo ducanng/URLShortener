@@ -52,24 +52,24 @@ func CreateShortUrl(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if store.CheckURLinDB(myurl.LongUrl) == true {
+	if store.CheckURLinDB(myurl.LongUrl) {
 		urlshortener = store.GetURLEntry(myurl.LongUrl)
+		sendResponse(w, http.StatusOK, map[string]string{"response": urlshortener.ShortenURL, "status": "already in the database"})
 	} else {
 		shorurl := shorten.GenerateShortLink()
-
 		//returns the current local time.
 		timeNow := time.Now().UTC()
 
 		urlshortener = Set(base62.Decode(shorurl), myurl.LongUrl, prefixLink+shorurl, 0, timeNow, timeNow)
 		store.SaveURL(urlshortener)
+		sendResponse(w, http.StatusOK, map[string]string{"response": urlshortener.ShortenURL, "status": "succescful"})
 	}
-	sendResponse(w, http.StatusOK, urlshortener)
 
 }
 func LinkCounter(entry shorten.URLEntry) {
 	entry.Clicks++
 	err := store.UpdateCounterLink(entry)
-	if err == false {
+	if !err {
 		fmt.Println("Update failed")
 	}
 	fmt.Println("Update successful")
@@ -116,11 +116,10 @@ func DeleteShortUrl(w http.ResponseWriter, r *http.Request) {
 
 	key := base62.Decode(shortPath)
 	check := store.DeleteShortURL(key)
-	if check == true {
-		sendResponse(w, http.StatusOK, map[string]string{"message": "delete successfully"})
-	} else {
+	if !check {
 		sendResponse(w, http.StatusBadRequest, map[string]string{"message": "delete failed"})
 	}
+	sendResponse(w, http.StatusOK, map[string]string{"message": "delete successful"})
 }
 
 //Update a new long url for shor url
@@ -141,23 +140,20 @@ func UpdateUrl(w http.ResponseWriter, r *http.Request) {
 	longurl := store.GetLongURL(shortUrl)
 	urlEntry := store.GetURLEntry(longurl)
 	timeNow := time.Now().UTC()
+
 	updateUrlEntry = Set(id, urlCreationRequest.LongUrl, prefixLink+shortUrl, 0, urlEntry.CreateAt, timeNow)
 	check := store.UpdateURL(updateUrlEntry)
 
-	if check == true {
-		sendResponse(w, http.StatusOK, map[string]string{"message": "update successful"})
-	} else {
+	if !check {
 		sendResponse(w, http.StatusBadRequest, map[string]string{"message": "update failed"})
 	}
+	sendResponse(w, http.StatusOK, map[string]string{"message": "update successful"})
 }
 
 // Check url
 func isValidURL(toTest string) bool {
 	_, err := url.ParseRequestURI(toTest)
-	if err != nil {
-		return false
-	}
-	return true
+	return err == nil
 }
 
 // respond

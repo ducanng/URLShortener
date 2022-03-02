@@ -3,7 +3,7 @@ services:
   urlshortener:
     depends_on:
       - db
-    image: golang:1.16-alpine
+    image: urlshortener
     container_name: url-shortener
     restart: on-failure
     build: 

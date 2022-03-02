@@ -18,7 +18,6 @@ import (
 // 	dbname   = "postgres"
 // )
 
-// Connect postgresql
 func InitalizeStore() *sql.DB {
 	// psqlInfo := fmt.Sprintf("host=%s port=%d user=%s "+
 	// 	"password=%s dbname=%s sslmode=disable",
@@ -98,13 +97,11 @@ func DeleteShortURL(key uint64) bool {
 	res, err := db.Exec(sqlStatement, key)
 	if err != nil {
 		panic(fmt.Sprintf("Don't find shortUrl to delete | Error: %v\n", err))
-		return false
 	}
 	//Check deleted short url from database
 	count, err := res.RowsAffected()
 	if err != nil {
 		panic(err)
-		return false
 	}
 	fmt.Print(count) // 0 : not deleted , 1 : deleted
 	if count == 0 {
