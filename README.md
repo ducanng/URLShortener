@@ -2,7 +2,9 @@
 
 ## Installation
 Cloning the repo :
-`git clone https://github.com/ducan172002/URLShortener.git`
+```
+git clone https://github.com/ducan172002/URLShortener.git
+```
 ## Run
 
 Run with Docker
