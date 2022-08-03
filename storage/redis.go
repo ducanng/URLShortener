@@ -14,7 +14,7 @@ type Redis struct {
 // NewRedisClient creates a new redis client
 func (s *Redis) Init() {
 	s.Client = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+		Addr:     "redis-db:6379",
 		Password: "",
 		DB:       0,
 	})
