@@ -1,0 +1,24 @@
+version: '3.8'
+services:
+  urlshort:
+    depends_on:
+      - redis-db
+    image: urlshort
+    container_name: url-shorted
+    restart: on-failure
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_URL=redis-db:6379 
+    links:
+     - redis-db
+  redis-db:
+    image: redis:alpine
+    ports:
+      - 6379:6379
+    container_name: redis-db
+volumes:
+  database-data:

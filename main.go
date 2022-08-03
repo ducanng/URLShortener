@@ -1,19 +1,22 @@
 package main
 
 import (
+	"URLShortener-gRPC-Swagger/client"
+	_ "URLShortener-gRPC-Swagger/docs"
 	"URLShortener-gRPC-Swagger/proto/urlshortenerpb"
-	"context"
+	"URLShortener-gRPC-Swagger/server"
+	"URLShortener-gRPC-Swagger/storage"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
+	"sync"
 
-	_ "URLShortener-gRPC-Swagger/docs"
-
-	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
+
+	"github.com/gin-gonic/gin"
 )
 
 type shortenBody struct {
@@ -34,17 +37,48 @@ type response struct {
 // @schemes http https
 // @host localhost:8080
 // @securityDefinitions.basic  BasicAuth
-func main() {
+var wg = sync.WaitGroup{}
+
+func RunServer() {
+	wg.Add(2)
+	log.Println("Server is running...")
+	// create server grpc
+	s := grpc.NewServer()
+	lis, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
+	// Init redis
+	redis := storage.Redis{}
+	redis.Init()
+	// register server
+	urlshortenerpb.RegisterURLShortenerServiceServer(s, &server.Server{Redis: &redis})
+
+	go func() {
+		log.Println("Starting server ...")
+		if err := s.Serve(lis); err != nil {
+			log.Fatalf("failed to serve: %v", err)
+			return
+		}
+		wg.Done()
+	}()
 	// create gin engine
 	router := gin.Default()
 	// create routes
 	router.POST("/shorted", ShortenedURL)
 	router.GET("/:id", Redirect)
-
 	// docs route
 	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	// run the Gin server
-	router.Run()
+	go func() {
+		// run the Gin server
+		router.Run()
+		wg.Done()
+	}()
+	wg.Wait()
+}
+
+func main() {
+	RunServer()
 }
 
 // @Summary Shorten URL
@@ -69,23 +103,7 @@ func ShortenedURL(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, message{Message: "Invalid URL " + urlErr.Error()})
 		return
 	}
-	// connect to gRPC server
-	conn, err := grpc.Dial(":50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("Could not connect: %v", err)
-	}
-	defer conn.Close()
-	// create gRPC client
-	client := urlshortenerpb.NewURLShortenerServiceClient(conn)
-	// create gRPC request
-	req := &urlshortenerpb.CreateURLRequest{
-		Url: body.OriginalURL,
-	}
-	// call gRPC server
-	res, err := client.CreateURL(context.Background(), req)
-	if err != nil {
-		log.Fatalf("Error while calling CreateURL RPC: %v", err)
-	}
+	res := client.CallCreateURL(body.OriginalURL)
 	// return response
 	c.JSON(http.StatusOK, response{message{Message: "Success"}, *res.GetUrl()})
 }
@@ -106,23 +124,8 @@ func Redirect(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, message{Message: "Invalid ID"})
 		return
 	}
-	// connect to gRPC server
-	conn, err := grpc.Dial(":50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	if err != nil {
-		log.Fatalf("Could not connect: %v", err)
-	}
-	defer conn.Close()
-	// create gRPC client
-	client := urlshortenerpb.NewURLShortenerServiceClient(conn)
-	// create gRPC request
-	req := &urlshortenerpb.GetURLRequest{
-		URL: prefixLink + id,
-	}
-	// call gRPC server
-	res, err := client.GetURL(context.Background(), req)
-	if err != nil {
-		log.Fatalf("Error while calling CreateURL RPC: %v", err)
-	}
+	url := prefixLink + id
+	res := client.CallGetURL(url)
 	// redirect to original url
 	c.Redirect(http.StatusMovedPermanently, res.GetUrl().GetOriginalURL())
 }

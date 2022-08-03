@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"URLShortener-gRPC-Swagger/model"
@@ -7,27 +7,24 @@ import (
 	"URLShortener-gRPC-Swagger/storage"
 	"context"
 	"log"
-	"net"
-
-	"google.golang.org/grpc"
 )
 
 var prefixLink string = "http://localhost:8080/"
 
-type server struct {
+type Server struct {
 	urlshortenerpb.URLShortenerServiceServer
-	redis *storage.Redis
+	Redis *storage.Redis
 }
 
-func (s *server) CreateURL(ctx context.Context, req *urlshortenerpb.CreateURLRequest) (*urlshortenerpb.CreateURLResponse, error) {
-	log.Printf("CreateURL call...")
+func (s *Server) CreateURL(ctx context.Context, req *urlshortenerpb.CreateURLRequest) (*urlshortenerpb.CreateURLResponse, error) {
+	//log.Printf("CreateURL call...")
 	// create short url
 	url := model.URLEntry{
 		OriginalURL: req.GetUrl(),
 		ShortedURL:  prefixLink + shorten.GenerateShortLink(),
 	}
 	// save to redis
-	_, err := s.redis.Set(url.ShortedURL, url.OriginalURL)
+	_, err := s.Redis.Set(url.ShortedURL, url.OriginalURL)
 	// return response
 	if err != nil {
 		log.Fatalf("Error when set key-value to redis: %v", err)
@@ -46,10 +43,10 @@ func (s *server) CreateURL(ctx context.Context, req *urlshortenerpb.CreateURLReq
 	}, nil
 }
 
-func (s *server) GetURL(ctx context.Context, req *urlshortenerpb.GetURLRequest) (*urlshortenerpb.GetURLResponse, error) {
-	log.Printf("GetURL call...")
+func (s *Server) GetURL(ctx context.Context, req *urlshortenerpb.GetURLRequest) (*urlshortenerpb.GetURLResponse, error) {
+	//log.Printf("GetURL call...")
 	// get original url from redis
-	originalURL, err := s.redis.Get(req.GetURL())
+	originalURL, err := s.Redis.Get(req.GetURL())
 
 	if err != nil {
 		log.Fatalf("Error when get key-value from redis: %v", err)
@@ -63,20 +60,27 @@ func (s *server) GetURL(ctx context.Context, req *urlshortenerpb.GetURLRequest) 
 	}, nil
 }
 
-func main() {
-	log.Println("Server is running...")
-	// create server grpc
-	s := grpc.NewServer()
-	lis, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
-	}
-	// Init redis
-	redis := storage.Redis{}
-	redis.Init()
-	// register server
-	urlshortenerpb.RegisterURLShortenerServiceServer(s, &server{redis: &redis})
-	if err := s.Serve(lis); err != nil {
-		log.Fatalf("failed to serve: %v", err)
-	}
-}
+// func startgRPCServer() {
+// 	log.Println("Server is running...")
+// 	// create server grpc
+// 	s := grpc.NewServer()
+// 	lis, err := net.Listen("tcp", ":50051")
+// 	if err != nil {
+// 		log.Fatalf("Failed to listen: %v", err)
+// 	}
+// 	// Init redis
+// 	redis := storage.Redis{}
+// 	redis.Init()
+// 	// register server
+// 	urlshortenerpb.RegisterURLShortenerServiceServer(s, &Server{redis: &redis})
+
+// 	log.Println("Starting server ...")
+// 	if err := s.Serve(lis); err != nil {
+// 		log.Fatalf("failed to serve: %v", err)
+// 		return
+// 	}
+// }
+
+// func main() {
+// 	startgRPCServer()
+// }
