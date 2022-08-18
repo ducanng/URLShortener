@@ -15,6 +15,7 @@ type URLEntry struct {
 	UpdateAt    time.Time `json:"update_at"`
 }
 
+// GenerateShortLink generates a short link
 func GenerateShortLink() string {
 	id := rand.New(rand.NewSource(time.Now().UnixNano()))
 	shortPath := base62.Encode(id.Uint64())
