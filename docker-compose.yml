@@ -1,50 +1,15 @@
-version: '3.8'
+
+version: "3.7"
+
 services:
-<<<<<<< HEAD
-  urlshortener:
-    depends_on:
-      - db
-    image: urlshortener
-    container_name: url-shortener
-=======
-  urlshort:
-    depends_on:
-      - redis-db
-    image: urlshort
-    container_name: url-shorted
->>>>>>> 65b11c0454d2c48ca6981909bce446dbcc75b0fa
-    restart: on-failure
+  url_shortener_server:
     build: 
-      context: .
-      dockerfile: Dockerfile
+      context: ./server
+    container_name: url_shortener_server
     ports:
-      - "8080:8080"
-<<<<<<< HEAD
-  db:
-    image: postgres:14-alpine
-    container_name: postgres14
-    restart: always
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=secret
-      - POSTGRES_DB=postgres
-    ports:
-      - "2345:5432"
-    volumes:
-      - database-data:/var/lib/postgresql/data/
-      - ./postgres_init/create_table.sql:/docker-entrypoint-initdb.d/create_table.sql
-volumes:
-  database-data:
-=======
-    environment:
-      - REDIS_URL=redis-db:6379 
-    links:
-     - redis-db
-  redis-db:
-    image: redis:alpine
-    ports:
-      - 6379:6379
-    container_name: redis-db
-volumes:
-  database-data:
->>>>>>> 65b11c0454d2c48ca6981909bce446dbcc75b0fa
+      - 8080:8080
+      - 8000:8000
+    depends_on: 
+      - redis_server
+  redis_server:
+    image: redis
