@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # URL Shortener
 
 ## Installation
@@ -69,3 +70,7 @@ curl -X PUT http://localhost:8080/GTGV4 -d '{"long_url":"https://vn.search.yahoo
 Response:
 `{"message":"update successful"}`
 Accessing [http://localhost:8080/GTGV4](http://localhost:8080/GTGV4) will redirect  [https://vn.search.yahoo.com/](https://vn.search.yahoo.com/)
+=======
+# URLShortener-gRPC-Swagger
+Build URL shortener using gRPC and Swagger
+>>>>>>> 65b11c0454d2c48ca6981909bce446dbcc75b0fa
