@@ -1,19 +1,19 @@
-#Build stage
-FROM golang:1.16-alpine AS builder
+FROM golang:1.18.4-alpine3.16 AS builder
+RUN apk add --no-cache git
 WORKDIR /app
+
 
 COPY go.mod .
 COPY go.sum .
 RUN go mod download
-
 COPY . .
 
-RUN go build -o main main.go
+RUN go build -o bin/main main.go
 
-#Run stage
-FROM alpine:latest
+FROM alpine:3.9
 WORKDIR /app
-COPY --from=builder /app/main .
+
+COPY --from=builder /app/bin/main .
 
 EXPOSE 8080
-CMD ["/app/main"]
+ENTRYPOINT ["./main"]

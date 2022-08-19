@@ -1,0 +1,89 @@
+basePath: /
+definitions:
+  main.message:
+    properties:
+      message:
+        type: string
+    type: object
+  main.response:
+    properties:
+      message:
+        type: string
+      status:
+        type: string
+      url:
+        $ref: '#/definitions/urlshortenerpb.ShortenedURL'
+    type: object
+  main.shortenBody:
+    properties:
+      original_url:
+        type: string
+    type: object
+  urlshortenerpb.ShortenedURL:
+    properties:
+      clicks:
+        type: integer
+      originalURL:
+        type: string
+      shortenedURL:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: This is a server for URL Shortener API.
+  title: URL Shortener API
+  version: 1.0.0
+paths:
+  /{id}:
+    get:
+      consumes:
+      - application/json
+      description: Redirect to original URL
+      operationId: redirect-url
+      parameters:
+      - description: Shortened URL
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      summary: Redirect to original URL
+      tags:
+      - redirect
+  /shorted:
+    post:
+      consumes:
+      - application/json
+      description: Create a shortened URL
+      operationId: shorten-url
+      parameters:
+      - description: Original URL
+        in: body
+        name: shorten
+        required: true
+        schema:
+          $ref: '#/definitions/main.shortenBody'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.message'
+      summary: Shorten URL
+      tags:
+      - shorten
+schemes:
+- http
+- https
+securityDefinitions:
+  BasicAuth:
+    type: basic
+swagger: "2.0"
