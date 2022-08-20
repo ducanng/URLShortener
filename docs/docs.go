@@ -16,6 +16,45 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/getinfo/{path}": {
+            "get": {
+                "description": "Get info of URL",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "getinfo"
+                ],
+                "summary": "Get info of URL",
+                "operationId": "get-info-url",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Info URL",
+                        "name": "path",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/main.response"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.message"
+                        }
+                    }
+                }
+            }
+        },
         "/shorted": {
             "post": {
                 "description": "Create a shortened URL",
@@ -57,7 +96,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/{id}": {
+        "/{path}": {
             "get": {
                 "description": "Redirect to original URL",
                 "consumes": [
@@ -75,7 +114,7 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Shortened URL",
-                        "name": "id",
+                        "name": "path",
                         "in": "path",
                         "required": true
                     }
@@ -112,6 +151,9 @@ const docTemplate = `{
             "properties": {
                 "original_url": {
                     "type": "string"
+                },
+                "shorted_url": {
+                    "type": "string"
                 }
             }
         },
@@ -139,7 +181,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.0.0",
+	Version:          "1.4.0",
 	Host:             "localhost:8080",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},

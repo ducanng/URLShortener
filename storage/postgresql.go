@@ -28,7 +28,7 @@ func (s *SQLStore) Init() {
 		log.Fatalf("SQL can't not connect: %v", err)
 	}
 	//Read file .sql
-	file, err := os.ReadFile("C:\\Users\\HP\\Documents\\Go\\URLShortener-gRPC-Swagger\\storage\\init.sql")
+	file, err := os.ReadFile("storage\\init.sql")
 	if err != nil {
 		log.Fatalf("Can't read sql file: %v", err)
 	}
@@ -48,7 +48,7 @@ func (s *SQLStore) Save(entry model.URLEntry) error {
 		entry.Clicks,
 	)
 	if err != nil {
-		return err
+		log.Fatalf("Can't execute sql file: %v", err)
 	}
 	return err
 }
@@ -59,7 +59,20 @@ func (s *SQLStore) Load(key string) (model.URLEntry, error) {
 	err := s.Client.QueryRow("SELECT * FROM url_list WHERE id = $1", id).
 		Scan(&value.Id, &value.OriginalURL, &value.ShortedURL, &value.Clicks)
 	if err != nil {
-		return value, err
+		log.Fatalf("Can't execute sql file: %v", err)
 	}
 	return value, err
+}
+
+func (s *SQLStore) UpdateClicks(path string, click int64) error {
+	id := int64(base62.Decode(path))
+	_, err := s.Client.Exec(
+		"UPDATE url_list SET clicks = $1 WHERE id = $2",
+		click,
+		id,
+	)
+	if err != nil {
+		log.Fatalf("Can't execute sql file: %v", err)
+	}
+	return err
 }

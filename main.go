@@ -22,6 +22,7 @@ import (
 )
 
 type shortenBody struct {
+	ShortedURL  string `json:"shorted_url"`
 	OriginalURL string `json:"original_url"`
 }
 type message struct {
@@ -30,13 +31,16 @@ type message struct {
 type response struct {
 	urlshortenerpb.CreateURLResponse
 }
+
 type Client struct {
-	CC client.Client
+	CC   client.Client
+	DB   *storage.SQLStore
+	body shortenBody
 }
 
 // @title URL Shortener API
 // @description This is a server for URL Shortener API.
-// @version 1.0.0
+// @version 1.4.0
 // @BasePath /
 // @schemes http https
 // @host localhost:8080
@@ -45,13 +49,7 @@ var wg = sync.WaitGroup{}
 
 func RunServer() {
 	wg.Add(2)
-	log.Println("Server is running...")
-	// create server grpc
-	s := grpc.NewServer()
-	lis, err := net.Listen("tcp", ":50051")
-	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
-	}
+
 	// Init redis
 	redis := storage.Redis{}
 	redis.Init()
@@ -59,9 +57,16 @@ func RunServer() {
 	sqlStore := storage.SQLStore{}
 	sqlStore.Init()
 	var entry model.URLEntry
+
+	log.Println("Server is running...")
+	// create server grpc
+	s := grpc.NewServer()
+	lis, err := net.Listen("tcp", ":50051")
+	if err != nil {
+		log.Fatalf("Failed to listen: %v", err)
+	}
 	// register server
 	urlshortenerpb.RegisterURLShortenerServiceServer(s, &server.Server{Redis: &redis, DB: &sqlStore, UrlEntry: entry})
-
 	go func() {
 		log.Println("Starting server ...")
 		if err := s.Serve(lis); err != nil {
@@ -70,11 +75,9 @@ func RunServer() {
 		}
 		wg.Done()
 	}()
-
+	// create server http
 	go func() {
-		// create gin engine
-		router := gin.Default()
-		// create routes
+
 		var c Client
 		cc, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
 		if err != nil {
@@ -82,8 +85,13 @@ func RunServer() {
 		}
 		defer cc.Close()
 		c.CC.CC = urlshortenerpb.NewURLShortenerServiceClient(cc)
+
+		// create gin engine
+		router := gin.Default()
+		// create routes
+		router.GET("/getinfo/:path", c.GetInfoURL())
 		router.POST("/shorted", c.ShortenedURL())
-		router.GET("/:id", c.Redirect())
+		router.GET("/:path", c.Redirect())
 		// docs route
 		router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 		// run the Gin server
@@ -113,37 +121,26 @@ func main() {
 func (cli *Client) ShortenedURL() gin.HandlerFunc {
 	//check originalURL is valid
 	return func(c *gin.Context) {
-		var body shortenBody
-		if err := c.BindJSON(&body); err != nil {
+		if err := c.BindJSON(&cli.body.OriginalURL); err != nil {
 			c.JSON(http.StatusBadRequest, response{
 				CreateURLResponse: urlshortenerpb.CreateURLResponse{
 					Status:  "Invalid URL",
 					Message: err.Error(),
-					Url: &urlshortenerpb.ShortenedURL{
-						OriginalURL:  body.OriginalURL,
-						ShortenedURL: "",
-						Clicks:       0,
-					},
 				},
 			})
 			return
 		}
-		_, urlErr := url.ParseRequestURI(body.OriginalURL)
+		_, urlErr := url.ParseRequestURI(cli.body.OriginalURL)
 		if urlErr != nil {
 			c.JSON(http.StatusBadRequest, response{
 				CreateURLResponse: urlshortenerpb.CreateURLResponse{
 					Status:  "Invalid URL",
 					Message: urlErr.Error(),
-					Url: &urlshortenerpb.ShortenedURL{
-						OriginalURL:  body.OriginalURL,
-						ShortenedURL: "",
-						Clicks:       0,
-					},
 				},
 			})
 			return
 		}
-		res := cli.CC.CallCreateURL(body.OriginalURL)
+		res := cli.CC.CallCreateURL(cli.body.OriginalURL)
 		c.JSON(http.StatusOK, response{
 			CreateURLResponse: urlshortenerpb.CreateURLResponse{
 				Status:  res.GetStatus(),
@@ -167,17 +164,55 @@ func (cli *Client) ShortenedURL() gin.HandlerFunc {
 // @Tags redirect
 // @Accept  json
 // @Produce  json
-// @Param id path string true "Shortened URL"
-// @Router /{id} [get]
+// @Param path path string true "Shortened URL"
+// @Router /{path} [get]
 func (cli *Client) Redirect() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		id := c.Param("id")
-		if id == "" {
+		path := c.Param("path")
+		if path == "" {
+			c.JSON(http.StatusBadRequest, message{Message: "Invalid path"})
+			return
+		}
+		res := cli.CC.CallGetURL(path)
+		// redirect to original url
+		click := res.GetUrl().GetClicks() + 1
+		err := cli.DB.UpdateClicks(path, click)
+		if err != nil {
+			return
+		}
+		c.Redirect(http.StatusMovedPermanently, res.GetUrl().GetOriginalURL())
+	}
+}
+
+// GetInfoURL
+// @Summary Get info of URL
+// @ID get-info-url
+// @Description Get info of URL
+// @Tags getinfo
+// @Accept  json
+// @Produce  json
+// @Param path path string true "Info URL"
+// @Success 200 {object} response
+// @Failure 400 {object} message
+// @Router /getinfo/{path} [get]
+func (cli *Client) GetInfoURL() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Param("path")
+		if path == "" {
 			c.JSON(http.StatusBadRequest, message{Message: "Invalid ID"})
 			return
 		}
-		res := cli.CC.CallGetURL(id)
-		// redirect to original url
-		c.Redirect(http.StatusMovedPermanently, res.GetUrl().GetOriginalURL())
+		res := cli.CC.CallGetURL(path)
+		c.JSON(http.StatusOK, response{
+			CreateURLResponse: urlshortenerpb.CreateURLResponse{
+				Status:  res.GetStatus(),
+				Message: res.Message,
+				Url: &urlshortenerpb.ShortenedURL{
+					OriginalURL:  res.GetUrl().GetOriginalURL(),
+					ShortenedURL: res.GetUrl().GetShortenedURL(),
+					Clicks:       res.GetUrl().GetClicks(),
+				},
+			},
+		})
 	}
 }

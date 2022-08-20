@@ -18,6 +18,8 @@ definitions:
     properties:
       original_url:
         type: string
+      shorted_url:
+        type: string
     type: object
   urlshortenerpb.ShortenedURL:
     properties:
@@ -33,9 +35,9 @@ info:
   contact: {}
   description: This is a server for URL Shortener API.
   title: URL Shortener API
-  version: 1.0.0
+  version: 1.4.0
 paths:
-  /{id}:
+  /{path}:
     get:
       consumes:
       - application/json
@@ -44,7 +46,7 @@ paths:
       parameters:
       - description: Shortened URL
         in: path
-        name: id
+        name: path
         required: true
         type: string
       produces:
@@ -53,6 +55,32 @@ paths:
       summary: Redirect to original URL
       tags:
       - redirect
+  /getinfo/{path}:
+    get:
+      consumes:
+      - application/json
+      description: Get info of URL
+      operationId: get-info-url
+      parameters:
+      - description: Info URL
+        in: path
+        name: path
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/main.response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.message'
+      summary: Get info of URL
+      tags:
+      - getinfo
   /shorted:
     post:
       consumes:

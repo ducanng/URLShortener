@@ -78,6 +78,15 @@ func (s *Server) GetURL(_ context.Context, req *urlshortenerpb.GetURLRequest) (*
 				Url:     nil,
 			}, err
 		}
+		err = s.Redis.Set(url)
+		if err != nil {
+			log.Fatalf("Error when set key-value to redis: %v", err)
+			return &urlshortenerpb.GetURLResponse{
+				Status:  "Failed",
+				Message: err.Error(),
+				Url:     nil,
+			}, err
+		}
 	}
 	// return response
 	return &urlshortenerpb.GetURLResponse{

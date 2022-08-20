@@ -5,7 +5,9 @@ import (
 	"URLShortener-gRPC-Swagger/shorten/base62"
 	"encoding/json"
 	"fmt"
+	"github.com/joho/godotenv"
 	"log"
+	"os"
 	"strconv"
 
 	"github.com/go-redis/redis"
@@ -17,8 +19,12 @@ type Redis struct {
 
 // Init NewRedisClient creates a new redis client
 func (s *Redis) Init() {
+	e := godotenv.Load()
+	if e != nil {
+		log.Fatalf("err loading: %v", e)
+	}
 	s.Client = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
+		Addr:     os.Getenv("REDIS_ADDR"),
 		Password: "",
 		DB:       0,
 	})
@@ -54,4 +60,16 @@ func (s *Redis) Get(key string) (model.URLEntry, error) {
 	var entry model.URLEntry
 	_ = json.Unmarshal([]byte(val), &entry)
 	return entry, err
+}
+
+func (s *Redis) Update(entry model.URLEntry) error {
+	marshal, e := json.Marshal(entry)
+	if e != nil {
+		log.Fatal(e)
+	}
+	_, err := s.Client.Set(strconv.FormatUint(uint64(entry.Id), 10), marshal, 0).Result()
+	if err != nil {
+		log.Fatal("Error when set key-value to redis: ", err)
+	}
+	return err
 }

@@ -8,3 +8,5 @@ go-build:
 	go build -o bin/main.exe main.go
 go-swag:
 	swag init
+dockerimage:
+	docker-compose up -d

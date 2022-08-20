@@ -11,15 +11,6 @@ type Client struct {
 }
 
 func (client *Client) CallCreateURL(url string) *urlshortenerpb.CreateURLResponse {
-	//create connection
-	//conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	//if err != nil {
-	//	log.Fatalf("Error when connect to server: %v", err)
-	//}
-	//defer conn.Close()
-	////create client
-	//c := urlshortenerpb.NewURLShortenerServiceClient(conn)
-
 	// create gRPC request
 	req := &urlshortenerpb.CreateURLRequest{
 		Url: url,
@@ -33,15 +24,6 @@ func (client *Client) CallCreateURL(url string) *urlshortenerpb.CreateURLRespons
 }
 
 func (client *Client) CallGetURL(url string) *urlshortenerpb.GetURLResponse {
-	// create connection
-	//conn, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
-	//if err != nil {
-	//	log.Fatalf("Error when connect to server: %v", err)
-	//}
-	//defer conn.Close()
-	//// create client
-	//client := urlshortenerpb.NewURLShortenerServiceClient(conn)
-
 	// create gRPC request
 	req := &urlshortenerpb.GetURLRequest{
 		URL: url,
