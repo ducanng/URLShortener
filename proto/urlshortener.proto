@@ -4,33 +4,24 @@ package urlshortener;
 
 option go_package="proto/urlshortenerpb";
 
-service URLShortenerService {
-    rpc CreateURL(CreateURLRequest) returns (CreateURLResponse){}
-    rpc GetURL(GetURLRequest) returns (GetURLResponse){}
-}
-
 message CreateURLRequest {
     string url = 1;
 }
-
-message CreateURLResponse {
-    string status = 1;
-    string message = 2;
-    ShortenedURL url = 3;   
-}
-
-message ShortenedURL {
-    string originalURL = 1;
-    string shortenedURL = 2;
-    int64  clicks = 3;
-}
-
 message GetURLRequest {
     string URL = 1;
 }
-
-message GetURLResponse {
-    string status = 1;
-    string message = 2;
+message ShortenedURL {
+    string originalURL = 1;
+    string shortenedURL = 2;
+    int32  clicks = 3;
+}
+message Response {
+    string message = 1;
+    string status = 2;
     ShortenedURL url = 3;
+}
+
+service URLShortenerService {
+    rpc CreateURL(CreateURLRequest) returns (Response){}
+    rpc GetURL(GetURLRequest) returns (Response){}
 }

@@ -22,8 +22,8 @@ const _ = grpc.SupportPackageIsVersion7
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type URLShortenerServiceClient interface {
-	CreateURL(ctx context.Context, in *CreateURLRequest, opts ...grpc.CallOption) (*CreateURLResponse, error)
-	GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*GetURLResponse, error)
+	CreateURL(ctx context.Context, in *CreateURLRequest, opts ...grpc.CallOption) (*Response, error)
+	GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*Response, error)
 }
 
 type uRLShortenerServiceClient struct {
@@ -34,8 +34,8 @@ func NewURLShortenerServiceClient(cc grpc.ClientConnInterface) URLShortenerServi
 	return &uRLShortenerServiceClient{cc}
 }
 
-func (c *uRLShortenerServiceClient) CreateURL(ctx context.Context, in *CreateURLRequest, opts ...grpc.CallOption) (*CreateURLResponse, error) {
-	out := new(CreateURLResponse)
+func (c *uRLShortenerServiceClient) CreateURL(ctx context.Context, in *CreateURLRequest, opts ...grpc.CallOption) (*Response, error) {
+	out := new(Response)
 	err := c.cc.Invoke(ctx, "/urlshortener.URLShortenerService/CreateURL", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -43,8 +43,8 @@ func (c *uRLShortenerServiceClient) CreateURL(ctx context.Context, in *CreateURL
 	return out, nil
 }
 
-func (c *uRLShortenerServiceClient) GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*GetURLResponse, error) {
-	out := new(GetURLResponse)
+func (c *uRLShortenerServiceClient) GetURL(ctx context.Context, in *GetURLRequest, opts ...grpc.CallOption) (*Response, error) {
+	out := new(Response)
 	err := c.cc.Invoke(ctx, "/urlshortener.URLShortenerService/GetURL", in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -56,8 +56,8 @@ func (c *uRLShortenerServiceClient) GetURL(ctx context.Context, in *GetURLReques
 // All implementations must embed UnimplementedURLShortenerServiceServer
 // for forward compatibility
 type URLShortenerServiceServer interface {
-	CreateURL(context.Context, *CreateURLRequest) (*CreateURLResponse, error)
-	GetURL(context.Context, *GetURLRequest) (*GetURLResponse, error)
+	CreateURL(context.Context, *CreateURLRequest) (*Response, error)
+	GetURL(context.Context, *GetURLRequest) (*Response, error)
 	mustEmbedUnimplementedURLShortenerServiceServer()
 }
 
@@ -65,10 +65,10 @@ type URLShortenerServiceServer interface {
 type UnimplementedURLShortenerServiceServer struct {
 }
 
-func (UnimplementedURLShortenerServiceServer) CreateURL(context.Context, *CreateURLRequest) (*CreateURLResponse, error) {
+func (UnimplementedURLShortenerServiceServer) CreateURL(context.Context, *CreateURLRequest) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateURL not implemented")
 }
-func (UnimplementedURLShortenerServiceServer) GetURL(context.Context, *GetURLRequest) (*GetURLResponse, error) {
+func (UnimplementedURLShortenerServiceServer) GetURL(context.Context, *GetURLRequest) (*Response, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetURL not implemented")
 }
 func (UnimplementedURLShortenerServiceServer) mustEmbedUnimplementedURLShortenerServiceServer() {}

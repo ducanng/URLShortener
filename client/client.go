@@ -10,7 +10,8 @@ type Client struct {
 	CC urlshortenerpb.URLShortenerServiceClient
 }
 
-func (client *Client) CallCreateURL(url string) *urlshortenerpb.CreateURLResponse {
+//goland:noinspection ALL
+func (client *Client) CallCreateURL(url string) *urlshortenerpb.Response {
 	// create gRPC request
 	req := &urlshortenerpb.CreateURLRequest{
 		Url: url,
@@ -23,7 +24,8 @@ func (client *Client) CallCreateURL(url string) *urlshortenerpb.CreateURLRespons
 	return res
 }
 
-func (client *Client) CallGetURL(url string) *urlshortenerpb.GetURLResponse {
+//goland:noinspection ALL
+func (client *Client) CallGetURL(url string) *urlshortenerpb.Response {
 	// create gRPC request
 	req := &urlshortenerpb.GetURLRequest{
 		URL: url,
@@ -31,7 +33,7 @@ func (client *Client) CallGetURL(url string) *urlshortenerpb.GetURLResponse {
 	// call gRPC server
 	res, err := client.CC.GetURL(context.Background(), req)
 	if err != nil {
-		log.Fatalf("Error while calling CreateURL RPC: %v", err)
+		log.Fatalf("Error while calling GetURL RPC: %v", err)
 	}
 	return res
 }

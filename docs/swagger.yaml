@@ -1,11 +1,6 @@
 basePath: /
 definitions:
-  main.message:
-    properties:
-      message:
-        type: string
-    type: object
-  main.response:
+  main.GRPCReturn:
     properties:
       message:
         type: string
@@ -14,11 +9,32 @@ definitions:
       url:
         $ref: '#/definitions/urlshortenerpb.ShortenedURL'
     type: object
+  main.JSONReturn:
+    properties:
+      clicks:
+        type: integer
+      original_url:
+        type: string
+      shortened_url:
+        type: string
+    type: object
+  main.Response:
+    properties:
+      grpc:
+        $ref: '#/definitions/main.GRPCReturn'
+      json:
+        $ref: '#/definitions/main.JSONReturn'
+      message:
+        $ref: '#/definitions/main.message'
+    type: object
+  main.message:
+    properties:
+      message:
+        type: string
+    type: object
   main.shortenBody:
     properties:
       original_url:
-        type: string
-      shorted_url:
         type: string
     type: object
   urlshortenerpb.ShortenedURL:
@@ -35,37 +51,46 @@ info:
   contact: {}
   description: This is a server for URL Shortener API.
   title: URL Shortener API
-  version: 1.4.0
+  version: 1.5.0
 paths:
-  /{path}:
+  /{pathShort}:
     get:
-      consumes:
-      - application/json
       description: Redirect to original URL
       operationId: redirect-url
       parameters:
       - description: Shortened URL
         in: path
-        name: path
+        name: pathShort
         required: true
         type: string
-      produces:
-      - application/json
-      responses: {}
+      responses:
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/main.message'
       summary: Redirect to original URL
       tags:
       - redirect
-  /getinfo/{path}:
+  /info/{pathShort}:
     get:
       consumes:
       - application/json
-      description: Get info of URL
+      description: Get info of URL, choose between json or grpc response, default
+        is json, if you want grpc, set return_type to grpc
       operationId: get-info-url
       parameters:
       - description: Info URL
         in: path
-        name: path
+        name: pathShort
         required: true
+        type: string
+      - default: json
+        description: Return type
+        enum:
+        - json
+        - grpc
+        in: query
+        name: return-type
         type: string
       produces:
       - application/json
@@ -73,7 +98,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.response'
+            $ref: '#/definitions/main.Response'
         "400":
           description: Bad Request
           schema:
@@ -85,22 +110,31 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a shortened URL
+      description: Create a shortened URL, choose between json or grpc response, default
+        is json, if you want grpc, set return_type to grpc
       operationId: shorten-url
       parameters:
       - description: Original URL
         in: body
-        name: shorten
+        name: original-url
         required: true
         schema:
           $ref: '#/definitions/main.shortenBody'
+      - default: json
+        description: Return type
+        enum:
+        - json
+        - grpc
+        in: query
+        name: return-type
+        type: string
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.response'
+            $ref: '#/definitions/main.Response'
         "400":
           description: Bad Request
           schema:

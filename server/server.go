@@ -14,13 +14,12 @@ var prefixLink = "http://localhost:8080/"
 
 type Server struct {
 	urlshortenerpb.URLShortenerServiceServer
-	Redis    *storage.Redis
-	DB       *storage.SQLStore
-	UrlEntry model.URLEntry
+	Redis *storage.Redis
+	DB    *storage.SQLStore
 }
 
 //goland:noinspection GoUnreachableCode
-func (s *Server) CreateURL(_ context.Context, req *urlshortenerpb.CreateURLRequest) (*urlshortenerpb.CreateURLResponse, error) {
+func (s *Server) CreateURL(_ context.Context, req *urlshortenerpb.CreateURLRequest) (*urlshortenerpb.Response, error) {
 	//log.Printf("CreateURL call...")
 	// create short url
 	shorPath := shorten.GenerateShortLink()
@@ -35,35 +34,35 @@ func (s *Server) CreateURL(_ context.Context, req *urlshortenerpb.CreateURLReque
 	// return response
 	if err != nil {
 		log.Fatalf("Error when set key-value to redis: %v", err)
-		return &urlshortenerpb.CreateURLResponse{
+		return &urlshortenerpb.Response{
+			Message: "Error when set key-value to redis",
 			Status:  "Failed",
-			Message: err.Error(),
 			Url:     nil,
 		}, err
 	}
 	// save to db
 	err = s.DB.Save(url)
 	if err != nil {
-		log.Fatalf("Error when save key-value to db: %v", err)
-		return &urlshortenerpb.CreateURLResponse{
+		log.Fatalf("Error when save data to db: %v", err)
+		return &urlshortenerpb.Response{
+			Message: "Error when save data to database",
 			Status:  "Failed",
-			Message: err.Error(),
 			Url:     nil,
 		}, err
 	}
-	return &urlshortenerpb.CreateURLResponse{
+	return &urlshortenerpb.Response{
+		Message: "Create short url",
 		Status:  "Success",
-		Message: "URL shortened",
 		Url: &urlshortenerpb.ShortenedURL{
-			OriginalURL:  req.Url,
+			OriginalURL:  url.OriginalURL,
 			ShortenedURL: prefixLink + url.ShortedURL,
-			Clicks:       0,
+			Clicks:       url.Clicks,
 		},
 	}, nil
 }
 
 //goland:noinspection ALL
-func (s *Server) GetURL(_ context.Context, req *urlshortenerpb.GetURLRequest) (*urlshortenerpb.GetURLResponse, error) {
+func (s *Server) GetURL(_ context.Context, req *urlshortenerpb.GetURLRequest) (*urlshortenerpb.Response, error) {
 	//log.Printf("GetURL call...")
 	// get data from redis
 	url, err := s.Redis.Get(req.GetURL())
@@ -71,27 +70,27 @@ func (s *Server) GetURL(_ context.Context, req *urlshortenerpb.GetURLRequest) (*
 		//get data from db
 		url, err = s.DB.Load(req.GetURL())
 		if err != nil {
-			log.Fatalf("Error when get key-value from db: %v", err)
-			return &urlshortenerpb.GetURLResponse{
+			log.Fatalf("Error when get data from database: %v", err)
+			return &urlshortenerpb.Response{
+				Message: "Error when get data from database",
 				Status:  "Failed",
-				Message: err.Error(),
 				Url:     nil,
 			}, err
 		}
 		err = s.Redis.Set(url)
 		if err != nil {
 			log.Fatalf("Error when set key-value to redis: %v", err)
-			return &urlshortenerpb.GetURLResponse{
+			return &urlshortenerpb.Response{
+				Message: "Error when set key-value to redis",
 				Status:  "Failed",
-				Message: err.Error(),
 				Url:     nil,
 			}, err
 		}
 	}
 	// return response
-	return &urlshortenerpb.GetURLResponse{
+	return &urlshortenerpb.Response{
+		Message: "Get short url",
 		Status:  "Success",
-		Message: "URL found",
 		Url: &urlshortenerpb.ShortenedURL{
 			OriginalURL:  url.OriginalURL,
 			ShortenedURL: url.ShortedURL,

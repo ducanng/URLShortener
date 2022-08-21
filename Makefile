@@ -6,7 +6,7 @@ gen-urlshortener:
 	protoc proto/urlshortener.proto --go_out=.
 go-build:
 	go build -o bin/main.exe main.go
-go-swag:
+swag:
 	swag init
 dockerimage:
 	docker-compose up -d

@@ -4,9 +4,10 @@ import (
 	"URLShortener-gRPC-Swagger/model"
 	"URLShortener-gRPC-Swagger/shorten/base62"
 	"database/sql"
-	"github.com/joho/godotenv"
 	"log"
 	"os"
+
+	"github.com/joho/godotenv"
 
 	_ "github.com/lib/pq"
 )
@@ -64,15 +65,15 @@ func (s *SQLStore) Load(key string) (model.URLEntry, error) {
 	return value, err
 }
 
-func (s *SQLStore) UpdateClicks(path string, click int64) error {
+func (s *SQLStore) UpdateClicks(path string, click int32) {
 	id := int64(base62.Decode(path))
 	_, err := s.Client.Exec(
 		"UPDATE url_list SET clicks = $1 WHERE id = $2",
 		click,
 		id,
 	)
+
 	if err != nil {
 		log.Fatalf("Can't execute sql file: %v", err)
 	}
-	return err
 }

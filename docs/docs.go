@@ -16,9 +16,9 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/getinfo/{path}": {
+        "/info/{pathShort}": {
             "get": {
-                "description": "Get info of URL",
+                "description": "Get info of URL, choose between json or grpc response, default is json, if you want grpc, set return_type to grpc",
                 "consumes": [
                     "application/json"
                 ],
@@ -34,16 +34,27 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Info URL",
-                        "name": "path",
+                        "name": "pathShort",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "enum": [
+                            "json",
+                            "grpc"
+                        ],
+                        "type": "string",
+                        "default": "json",
+                        "description": "Return type",
+                        "name": "return-type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.response"
+                            "$ref": "#/definitions/main.Response"
                         }
                     },
                     "400": {
@@ -57,7 +68,7 @@ const docTemplate = `{
         },
         "/shorted": {
             "post": {
-                "description": "Create a shortened URL",
+                "description": "Create a shortened URL, choose between json or grpc response, default is json, if you want grpc, set return_type to grpc",
                 "consumes": [
                     "application/json"
                 ],
@@ -72,19 +83,30 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "description": "Original URL",
-                        "name": "shorten",
+                        "name": "original-url",
                         "in": "body",
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/main.shortenBody"
                         }
+                    },
+                    {
+                        "enum": [
+                            "json",
+                            "grpc"
+                        ],
+                        "type": "string",
+                        "default": "json",
+                        "description": "Return type",
+                        "name": "return-type",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.response"
+                            "$ref": "#/definitions/main.Response"
                         }
                     },
                     "400": {
@@ -96,15 +118,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/{path}": {
+        "/{pathShort}": {
             "get": {
                 "description": "Redirect to original URL",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
                 "tags": [
                     "redirect"
                 ],
@@ -114,25 +130,24 @@ const docTemplate = `{
                     {
                         "type": "string",
                         "description": "Shortened URL",
-                        "name": "path",
+                        "name": "pathShort",
                         "in": "path",
                         "required": true
                     }
                 ],
-                "responses": {}
+                "responses": {
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/main.message"
+                        }
+                    }
+                }
             }
         }
     },
     "definitions": {
-        "main.message": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "main.response": {
+        "main.GRPCReturn": {
             "type": "object",
             "properties": {
                 "message": {
@@ -146,13 +161,46 @@ const docTemplate = `{
                 }
             }
         },
+        "main.JSONReturn": {
+            "type": "object",
+            "properties": {
+                "clicks": {
+                    "type": "integer"
+                },
+                "original_url": {
+                    "type": "string"
+                },
+                "shortened_url": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.Response": {
+            "type": "object",
+            "properties": {
+                "grpc": {
+                    "$ref": "#/definitions/main.GRPCReturn"
+                },
+                "json": {
+                    "$ref": "#/definitions/main.JSONReturn"
+                },
+                "message": {
+                    "$ref": "#/definitions/main.message"
+                }
+            }
+        },
+        "main.message": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
         "main.shortenBody": {
             "type": "object",
             "properties": {
                 "original_url": {
-                    "type": "string"
-                },
-                "shorted_url": {
                     "type": "string"
                 }
             }
@@ -181,7 +229,7 @@ const docTemplate = `{
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
-	Version:          "1.4.0",
+	Version:          "1.5.0",
 	Host:             "localhost:8080",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
