@@ -21,17 +21,18 @@ services:
       - "6379:6379"
     container_name: redis-db
   db:
-    image: postgres:14-alpine
-    container_name: postgres14
+    image: mysql:8.0.23
+    container_name: mysql-db
     restart: always
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=secret
-      - POSTGRES_DB=postgres
+        MYSQL_ROOT_PASSWORD: root
+        MYSQL_DATABASE: url_shortener
+        MYSQL_USER: root
+        MYSQL_PASSWORD: 123456
     ports:
-      - "5432:5432"
+        - "3306:3306"
     volumes:
-      - database-data:/var/lib/postgresql/data/
-      - ./postgres_init/create_table.sql:/docker-entrypoint-
+      - database-data:/var/lib/mysql
+      - ./internal/config/schema.sql:/docker-entrypoint-initdb.d/schema.sql
 volumes:
   database-data:
