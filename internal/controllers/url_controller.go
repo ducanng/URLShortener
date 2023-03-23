@@ -17,7 +17,7 @@ type UrlController struct {
 	urlService *services.UrlService
 }
 
-func NewController(db database.DB, cache cache.Redis) *UrlController {
+func NewController(db *database.DB, cache *cache.Redis) *UrlController {
 	return &UrlController{
 		urlService: services.NewUrlService(db, cache),
 	}
@@ -29,7 +29,7 @@ func (u *UrlController) Redirect(c *gin.Context) {
 
 	shortenedUrl, err := u.urlService.GetUrl(id)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
 	c.Redirect(http.StatusMovedPermanently, shortenedUrl.GetOriginalUrl())
@@ -37,18 +37,19 @@ func (u *UrlController) Redirect(c *gin.Context) {
 
 func (u *UrlController) Create(c *gin.Context) {
 	shortenedUrl := &models.ShortenedUrl{}
+	log.Printf("URL Shortener Object:/n %+v", shortenedUrl)
 	if err := c.ShouldBindJSON(&shortenedUrl); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 	if !u.urlService.IsValidUrl(shortenedUrl.GetOriginalUrl()) {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid URL"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Please enter a valid URL"})
 		return
 	}
 	log.Println(shortenedUrl.GetOriginalUrl())
 	err := u.urlService.CreateUrl(shortenedUrl)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
 	c.JSON(http.StatusCreated, shortenedUrl)

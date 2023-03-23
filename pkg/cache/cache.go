@@ -7,13 +7,6 @@ import (
 	"time"
 )
 
-type RedisCache interface {
-	Get(key string) (string, error)
-	Set(key string, value string) error
-	Update(key string, value string) error
-	Delete(key string) error
-}
-
 type Redis struct {
 	*redis.Client
 }
@@ -39,9 +32,9 @@ func (r *Redis) Set(key string, value string, expire time.Duration) error {
 	return r.Client.Set(key, value, expire).Err()
 }
 
-func (r *Redis) Update(key string, value string) error {
+func (r *Redis) Update(key string, value string, expire time.Duration) error {
 	log.Println("Updating Redis")
-	return r.Client.Set(key, value, 0).Err()
+	return r.Client.Set(key, value, expire).Err()
 }
 
 func (r *Redis) Delete(key string) error {

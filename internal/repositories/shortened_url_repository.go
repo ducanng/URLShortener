@@ -17,11 +17,11 @@ type ShortenedUrlRepository interface {
 }
 
 type ShortenURLRepository struct {
-	db    database.DB
-	cache cache.Redis
+	db    *database.DB
+	cache *cache.Redis
 }
 
-func NewShortenURLRepository(db database.DB, cache cache.Redis) *ShortenURLRepository {
+func NewShortenURLRepository(db *database.DB, cache *cache.Redis) *ShortenURLRepository {
 	return &ShortenURLRepository{
 		db:    db,
 		cache: cache,

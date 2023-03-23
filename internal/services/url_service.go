@@ -1,6 +1,7 @@
 package services
 
 import (
+	"URLShortener/internal/config"
 	"URLShortener/internal/models"
 	"URLShortener/internal/repositories"
 	"URLShortener/pkg/cache"
@@ -8,7 +9,7 @@ import (
 	"encoding/json"
 	"github.com/google/uuid"
 	"log"
-	"net/url"
+	"net/http"
 	"time"
 )
 
@@ -16,14 +17,31 @@ var prefix = "http://localhost:8080/"
 
 type UrlService struct {
 	urlRepository *repositories.ShortenURLRepository
-	cache         cache.Redis
+	cache         *cache.Redis
 }
 
-func NewUrlService(db database.DB, cache cache.Redis) *UrlService {
+func NewUrlService(db *database.DB, cache *cache.Redis) *UrlService {
 	return &UrlService{
 		urlRepository: repositories.NewShortenURLRepository(db, cache),
 		cache:         cache,
 	}
+}
+
+func LoadConnect(cfg *config.Config) (*database.DB, *cache.Redis) {
+	db := database.DB{}
+	err := db.Connect(cfg)
+	if err != nil {
+		log.Printf("Error while connecting to database: %v", err)
+		return nil, nil
+	}
+
+	r := cache.Redis{}
+	err = r.Connect(cfg)
+	if err != nil {
+		log.Printf("Error while connecting to redis: %v", err)
+		return &db, nil
+	}
+	return &db, &r
 }
 
 func (us *UrlService) CreateUrl(urlShorten *models.ShortenedUrl) error {
@@ -37,7 +55,7 @@ func (us *UrlService) CreateUrl(urlShorten *models.ShortenedUrl) error {
 	// Save to database
 	err := us.urlRepository.Save(urlShorten)
 	if err != nil {
-		log.Fatalf("Error while saving url: %v", err)
+		log.Printf("Error while saving url: %v", err)
 		return err
 	}
 
@@ -47,7 +65,10 @@ func (us *UrlService) CreateUrl(urlShorten *models.ShortenedUrl) error {
 func (us *UrlService) GetUrl(id string) (*models.ShortenedUrl, error) {
 	// Get from cache
 	data, e := us.cache.Get(id)
+
 	if e == nil && data != "" {
+		log.Printf("Get from cache: %v", data)
+
 		var shortenedUrl models.ShortenedUrl
 		e = json.Unmarshal([]byte(data), &shortenedUrl)
 		if e != nil {
@@ -59,19 +80,22 @@ func (us *UrlService) GetUrl(id string) (*models.ShortenedUrl, error) {
 	}
 
 	// Get from database
+	log.Println("Get from database")
 	findByID, err := us.urlRepository.FindByID(id)
 	if err != nil {
-		log.Fatalf("Error while getting FindByID: %v", err)
+		log.Printf("Error while getting FindByID: %v", err)
 		return &models.ShortenedUrl{}, err
 	}
 	// Convert to json
 	byteData, e := json.Marshal(findByID)
 	if e != nil {
+		log.Printf("Error while marshalling: %v", e)
 		return nil, e
 	}
 	// Save to cache
 	err = us.cache.Set(id, string(byteData), 72*time.Hour)
 	if err != nil {
+		log.Printf("Error while setting cache: %v", err)
 		return nil, err
 	}
 
@@ -79,16 +103,15 @@ func (us *UrlService) GetUrl(id string) (*models.ShortenedUrl, error) {
 }
 
 func (us *UrlService) IsValidUrl(urlChecking string) bool {
-	if urlChecking == "" {
-		return false
-	}
-	u, err := url.Parse(urlChecking)
+	response, err := http.Head(urlChecking)
 	if err != nil {
 		return false
 	}
-	if u.Scheme == "" || u.Host == "" {
+
+	if response.StatusCode != http.StatusOK {
 		return false
 	}
+
 	return true
 }
 
@@ -98,6 +121,7 @@ func (us *UrlService) DeleteUrl(id string) error {
 	// Get from cache
 	data, err := us.cache.Get(id)
 	if err == nil && data != "" {
+		log.Println("Get from cache")
 		err = json.Unmarshal([]byte(data), &shortenedUrl)
 		if err != nil {
 			return err
@@ -105,14 +129,15 @@ func (us *UrlService) DeleteUrl(id string) error {
 		// Delete from cache
 		err = us.cache.Delete(id)
 		if err != nil {
-			log.Fatalf("Error while deleting cache: %v", err)
+			log.Printf("Error while deleting cache: %v", err)
 			return err
 		}
 	} else {
 		// Get from database
 		findById, e := us.urlRepository.FindByID(id)
+		log.Println("Get from database")
 		if e != nil {
-			log.Fatalf("Error while getting url: %v", err)
+			log.Printf("Error while getting url: %v", err)
 			return e
 		}
 		if findById == nil {
@@ -125,7 +150,7 @@ func (us *UrlService) DeleteUrl(id string) error {
 	// Delete from database
 	err = us.urlRepository.Delete(&shortenedUrl)
 	if err != nil {
-		log.Fatalf("Error while deleting url: %v", err)
+		log.Printf("Error while deleting url: %v", err)
 		return err
 	}
 
