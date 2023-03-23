@@ -13,8 +13,8 @@ type Config struct {
 	Redis *redis.Options
 }
 
-func LoadConfig() (*Config, error) {
-	err := godotenv.Load()
+func LoadConfig(path string) (*Config, error) {
+	err := godotenv.Load(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load .env file: %w", err)
 	}
