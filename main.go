@@ -2,8 +2,7 @@ package main
 
 import (
 	"URLShortener/internal/config"
-	"URLShortener/pkg/cache"
-	"URLShortener/pkg/database"
+	"URLShortener/internal/services"
 	"URLShortener/router"
 	"log"
 	"os"
@@ -12,25 +11,13 @@ import (
 func main() {
 	log.SetOutput(os.Stdout)
 
-	db := database.DB{}
-	cfg, err := config.LoadConfig()
+	cfg, err := config.LoadConfig(".env")
 	if err != nil {
 		log.Fatalf("Error while loading config: %v", err)
 		return
 	}
 
-	err = db.Connect(cfg)
-	if err != nil {
-		log.Fatalf("Error while connecting to database: %v", err)
-		return
-	}
-
-	redis := cache.Redis{}
-	err = redis.Connect(cfg)
-	if err != nil {
-		log.Fatalf("Error while connecting to redis: %v", err)
-		return
-	}
+	db, redis := services.LoadConnect(cfg)
 
 	r := router.InitRouter(db, redis)
 	log.Println("Server start on port 8080")
