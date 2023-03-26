@@ -1,40 +1,40 @@
 package models
 
 type User struct {
-	id       int
-	username string
-	password string
-	email    string
+	Id       int    `json:"id"`
+	Username string `json:"username"`
+	Password string `json:"password"`
+	Email    string `json:"email"`
 }
 
-func (u *User) Id() int {
-	return u.id
+func (u *User) GetId() int {
+	return u.Id
 }
 
 func (u *User) SetId(id int) {
-	u.id = id
+	u.Id = id
 }
 
-func (u *User) Username() string {
-	return u.username
+func (u *User) GetUsername() string {
+	return u.Username
 }
 
 func (u *User) SetUsername(username string) {
-	u.username = username
+	u.Username = username
 }
 
-func (u *User) Password() string {
-	return u.password
+func (u *User) GetPassword() string {
+	return u.Password
 }
 
 func (u *User) SetPassword(password string) {
-	u.password = password
+	u.Password = password
 }
 
-func (u *User) Email() string {
-	return u.email
+func (u *User) GetEmail() string {
+	return u.Email
 }
 
 func (u *User) SetEmail(email string) {
-	u.email = email
+	u.Email = email
 }
