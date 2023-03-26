@@ -2,11 +2,29 @@ package main
 
 import (
 	"URLShortener/internal/config"
-	"URLShortener/internal/services"
+	"URLShortener/pkg/cache"
+	"URLShortener/pkg/database"
 	"URLShortener/router"
 	"log"
 	"os"
 )
+
+func LoadConnect(cfg *config.Config) (*database.DB, *cache.Redis) {
+	db := database.DB{}
+	err := db.Connect(cfg)
+	if err != nil {
+		log.Printf("Error while connecting to database: %v", err)
+		return nil, nil
+	}
+
+	r := cache.Redis{}
+	err = r.Connect(cfg)
+	if err != nil {
+		log.Printf("Error while connecting to redis: %v", err)
+		return &db, nil
+	}
+	return &db, &r
+}
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -17,7 +35,7 @@ func main() {
 		return
 	}
 
-	db, redis := services.LoadConnect(cfg)
+	db, redis := LoadConnect(cfg)
 
 	r := router.InitRouter(db, redis)
 	log.Println("Server start on port 8080")

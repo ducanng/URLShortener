@@ -1,7 +1,6 @@
 package services
 
 import (
-	"URLShortener/internal/config"
 	"URLShortener/internal/models"
 	"URLShortener/internal/repositories"
 	"URLShortener/pkg/cache"
@@ -25,23 +24,6 @@ func NewUrlService(db *database.DB, cache *cache.Redis) *UrlService {
 		urlRepository: repositories.NewShortenURLRepository(db, cache),
 		cache:         cache,
 	}
-}
-
-func LoadConnect(cfg *config.Config) (*database.DB, *cache.Redis) {
-	db := database.DB{}
-	err := db.Connect(cfg)
-	if err != nil {
-		log.Printf("Error while connecting to database: %v", err)
-		return nil, nil
-	}
-
-	r := cache.Redis{}
-	err = r.Connect(cfg)
-	if err != nil {
-		log.Printf("Error while connecting to redis: %v", err)
-		return &db, nil
-	}
-	return &db, &r
 }
 
 func (us *UrlService) CreateUrl(urlShorten *models.ShortenedUrl) error {
@@ -68,7 +50,6 @@ func (us *UrlService) GetUrl(id string) (*models.ShortenedUrl, error) {
 
 	if e == nil && data != "" {
 		log.Printf("Get from cache: %v", data)
-
 		var shortenedUrl models.ShortenedUrl
 		e = json.Unmarshal([]byte(data), &shortenedUrl)
 		if e != nil {
@@ -90,13 +71,11 @@ func (us *UrlService) GetUrl(id string) (*models.ShortenedUrl, error) {
 	byteData, e := json.Marshal(findByID)
 	if e != nil {
 		log.Printf("Error while marshalling: %v", e)
-		return nil, e
 	}
 	// Save to cache
 	err = us.cache.Set(id, string(byteData), 72*time.Hour)
 	if err != nil {
 		log.Printf("Error while setting cache: %v", err)
-		return nil, err
 	}
 
 	return findByID, nil
