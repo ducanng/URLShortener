@@ -50,7 +50,11 @@ main {
     font-size: 18px;
     text-align: center;
 }
-
+.text-format {
+    font-family: "Josefin Sans", sans-serif;
+    color: #e9c46a;
+    font-size: 40px;
+}
 .content-row {
     display: flex;
 }
@@ -80,7 +84,17 @@ input[type="text"] {
 .button:hover {
     background-color: #297c74;
 }
-
+.history-container {
+    width: 50%;
+    height: 300px;
+    top: 50px;
+    right: 20px;
+    overflow-y: auto;
+    margin: auto auto 25px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
 #new-url {
     display: flex;
     color: black;

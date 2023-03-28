@@ -15,9 +15,16 @@ func InitRouter(db *database.DB, cache *cache.Redis) *gin.Engine {
 	r := gin.New()
 	r.Static("/templates/assets", "./templates/assets/")
 	//check
-
-	templates := template.Must(template.ParseGlob("templates/views/*"))
-	r.SetHTMLTemplate(templates)
+	files := []string{
+		"templates/views/index.html",
+		"templates/views/partials/header.html",
+	}
+	tmpl, err := template.ParseFiles(files...)
+	if err != nil {
+		//log.Fatalf("Error while parsing template: %v", err)
+		panic(err)
+	}
+	r.SetHTMLTemplate(tmpl)
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
