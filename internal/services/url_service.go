@@ -78,7 +78,6 @@ func (us *UrlService) GetUrl(id string) (*models.ShortenedUrl, error) {
 	if err != nil {
 		log.Printf("Error while setting cache: %v", err)
 	}
-
 	return findByID, nil
 }
 
@@ -134,5 +133,14 @@ func (us *UrlService) DeleteUrl(id string) error {
 		return err
 	}
 
+	return nil
+}
+
+func (us *UrlService) UpdateUrl(url *models.ShortenedUrl) error {
+	err := us.urlRepository.UpdateClicks(url)
+	if err != nil {
+		log.Printf("Error while updating url: %v", err)
+		return err
+	}
 	return nil
 }

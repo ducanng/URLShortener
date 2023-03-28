@@ -14,6 +14,7 @@ type ShortenedUrlRepository interface {
 	FindByID(shortUrl string) (*models.ShortenedUrl, error)
 	Save(shortUrl *models.ShortenedUrl) error
 	Delete(shortUrl *models.ShortenedUrl) error
+	Update(shortUrl *models.ShortenedUrl) error
 }
 
 type ShortenURLRepository struct {
@@ -63,6 +64,28 @@ func (s *ShortenURLRepository) Save(shortUrl *models.ShortenedUrl) error {
 func (s *ShortenURLRepository) Delete(shortUrl *models.ShortenedUrl) error {
 	_, err := s.db.Exec("DELETE FROM shortened_urls WHERE id = ?", shortUrl.GetId())
 	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *ShortenURLRepository) UpdateClicks(url *models.ShortenedUrl) error {
+	// Update database
+	_, err := s.db.Exec("UPDATE shortened_urls SET clicks = ? WHERE id = ?", url.GetClicks(), url.GetId())
+	if err != nil {
+		log.Printf("Error while updating clicks: %v", err)
+		return err
+	}
+	// Update cache
+	byteData, e := json.Marshal(url)
+	if e != nil {
+		log.Printf("Error while marshalling: %v", e)
+		return e
+	}
+	data := string(byteData)
+	err = s.cache.Set(url.GetId(), data, 72*time.Hour)
+	if err != nil {
+		log.Printf("Error while setting cache: %v", err)
 		return err
 	}
 	return nil

@@ -32,6 +32,8 @@ func (u *UrlController) Redirect(c *gin.Context) {
 		_ = c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
+	shortenedUrl.SetClicks(shortenedUrl.GetClicks() + 1)
+	err = u.urlService.UpdateUrl(shortenedUrl)
 	c.Redirect(http.StatusMovedPermanently, shortenedUrl.GetOriginalUrl())
 }
 
