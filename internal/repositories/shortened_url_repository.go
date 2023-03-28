@@ -31,7 +31,7 @@ func NewShortenURLRepository(db *database.DB, cache *cache.Redis) *ShortenURLRep
 func (s *ShortenURLRepository) FindByID(shortUrl string) (*models.ShortenedUrl, error) {
 	res := s.db.QueryRow("SELECT * FROM shortened_urls WHERE id = ?", shortUrl)
 	var shortenedUrl models.ShortenedUrl
-	err := res.Scan(&shortenedUrl.Id, &shortenedUrl.OriginalUrl, &shortenedUrl.ShortUrl, &shortenedUrl.CreatedAt)
+	err := res.Scan(&shortenedUrl.Id, &shortenedUrl.OriginalUrl, &shortenedUrl.ShortUrl, &shortenedUrl.CreatedAt, &shortenedUrl.Clicks)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func (s *ShortenURLRepository) FindByID(shortUrl string) (*models.ShortenedUrl, 
 }
 
 func (s *ShortenURLRepository) Save(shortUrl *models.ShortenedUrl) error {
-	_, err := s.db.Exec("INSERT INTO shortened_urls (id, original_url, short_url, created_at) VALUES (?, ?, ?, ?)",
+	_, err := s.db.Exec("INSERT INTO shortened_urls (id, original_url, short_url, created_at, clicks) VALUES (?, ?, ?, ?)",
 		shortUrl.GetId(), shortUrl.GetOriginalUrl(), shortUrl.GetShortUrl(), shortUrl.GetCreatedAt())
 	if err != nil {
 		return err

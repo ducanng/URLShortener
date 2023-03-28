@@ -9,6 +9,7 @@ type ShortenedUrl struct {
 	//Alias       string    `json:"alias"`
 	ShortUrl  string    `json:"shortUrl"`
 	CreatedAt time.Time `json:"createdAt"`
+	Clicks    int       `json:"clicks"`
 }
 
 func (s *ShortenedUrl) GetId() string {
@@ -50,4 +51,12 @@ func (s *ShortenedUrl) GetCreatedAt() time.Time {
 
 func (s *ShortenedUrl) SetCreatedAt(createdAt time.Time) {
 	s.CreatedAt = createdAt
+}
+
+func (s *ShortenedUrl) GetClicks() int {
+	return s.Clicks
+}
+
+func (s *ShortenedUrl) SetClicks(clicks int) {
+	s.Clicks = clicks
 }

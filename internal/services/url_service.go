@@ -32,6 +32,7 @@ func (us *UrlService) CreateUrl(urlShorten *models.ShortenedUrl) error {
 	urlShorten.SetId(id)
 	urlShorten.SetShortUrl(prefix + id)
 	urlShorten.SetCreatedAt(time.Now())
+	urlShorten.SetClicks(0)
 	log.Println(urlShorten)
 
 	// Save to database
