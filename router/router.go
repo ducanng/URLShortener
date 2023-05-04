@@ -4,6 +4,8 @@ import (
 	"URLShortener/internal/controllers"
 	"URLShortener/pkg/cache"
 	"URLShortener/pkg/database"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"html/template"
 	"log"
@@ -28,6 +30,9 @@ func InitRouter(db *database.DB, cache *cache.Redis) *gin.Engine {
 	r.Use(gin.Logger())
 	r.Use(gin.Recovery())
 
+	store := cookie.NewStore([]byte("secret"))
+
+	r.Use(sessions.Sessions("mysession", store))
 	// curl http://localhost:8080/ping
 	r.GET("/ping", func(c *gin.Context) {
 		log.Println("pong")
@@ -43,6 +48,7 @@ func InitRouter(db *database.DB, cache *cache.Redis) *gin.Engine {
 	})
 
 	r.GET("/home", func(c *gin.Context) {
+
 		c.HTML(http.StatusOK, "index.html", gin.H{
 			"Title":   "Home Page",
 			"Content": "URL Shortener",

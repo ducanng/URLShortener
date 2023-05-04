@@ -1,16 +1,15 @@
 package controllers
 
-// Path: internal\controllers\url_controller.go
-// Compare this snippet from internal\controllers\url_controller.go:
-//
 import (
 	"URLShortener/internal/models"
 	"URLShortener/internal/services"
 	"URLShortener/pkg/cache"
 	"URLShortener/pkg/database"
+	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
+	"net/url"
 )
 
 type UrlController struct {
@@ -53,6 +52,34 @@ func (u *UrlController) Create(c *gin.Context) {
 	if err != nil {
 		c.AbortWithError(http.StatusBadRequest, err)
 		return
+	}
+	// Set cookies history of shortened urls
+	var shortenedURLs []string
+	if cookie, err := c.Request.Cookie("shortenedURLs"); err == nil {
+		// Giải mã cookie
+		if value, err := url.QueryUnescape(cookie.Value); err == nil {
+			// Chuyển đổi giá trị cookie từ JSON sang danh sách các URL
+			if err := json.Unmarshal([]byte(value), &shortenedURLs); err != nil {
+				log.Printf("Error while unmarshalling cookie: %v", err)
+			}
+		} else {
+			log.Printf("Error while unescaping cookie: %v", err)
+		}
+	}
+	byteData, e := json.Marshal(shortenedUrl)
+	if e != nil {
+		log.Printf("Error while marshalling cookie: %v", e)
+	}
+	data := string(byteData)
+	// Thêm shortenedURL vào danh sách
+	shortenedURLs = append(shortenedURLs, data)
+
+	// Chuyển đổi danh sách shortenedURLs sang JSON và lưu vào cookie
+	if jsonValue, err := json.Marshal(shortenedURLs); err == nil {
+		encodedValue := url.QueryEscape(string(jsonValue))
+		c.SetCookie("shortenedURLs", encodedValue, 86400, "", "", false, true)
+	} else {
+		// Xử lý lỗi
 	}
 	c.JSON(http.StatusCreated, shortenedUrl)
 }
