@@ -4,10 +4,11 @@ import (
 	"URLShortener-gRPC-Swagger/model"
 	"URLShortener-gRPC-Swagger/proto/urlshortenerpb"
 	"URLShortener-gRPC-Swagger/shorten"
-	"URLShortener-gRPC-Swagger/shorten/base62"
 	"URLShortener-gRPC-Swagger/storage"
 	"context"
 	"log"
+
+	base62 "github.com/alextanhongpin/base62"
 )
 
 var prefixLink = "http://localhost:8080/"
