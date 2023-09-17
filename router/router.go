@@ -4,12 +4,13 @@ import (
 	"URLShortener/internal/controllers"
 	"URLShortener/pkg/cache"
 	"URLShortener/pkg/database"
-	"github.com/gin-contrib/sessions"
-	"github.com/gin-contrib/sessions/cookie"
-	"github.com/gin-gonic/gin"
 	"html/template"
 	"log"
 	"net/http"
+
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
+	"github.com/gin-gonic/gin"
 )
 
 func InitRouter(db *database.DB, cache *cache.Redis) *gin.Engine {
