@@ -187,18 +187,7 @@ func (cli *IClient) Redirect( /*sqlStore storage.SQLStore, redis storage.Redis*/
 			c.JSON(http.StatusNotFound, message{Message: "URL not found"})
 			return
 		}
-
-		//clicks := res.GetUrl().GetClicks() + 1
-		//fmt.Println(clicks)
-		//sqlStore.UpdateClicks(path, clicks)
-		//entry := model.URLEntry{
-		//	Id:          int64(base62.Decode(path)),
-		//	OriginalURL: res.GetUrl().GetOriginalURL(),
-		//	ShortedURL:  res.GetUrl().GetShortenedURL(),
-		//	Clicks:      clicks,
-		//}
-		//redis.Set(entry)
-		// redirect to original url
+		
 		c.Redirect(http.StatusMovedPermanently, res.GetUrl().GetOriginalURL())
 	}
 }

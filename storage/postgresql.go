@@ -2,10 +2,11 @@ package storage
 
 import (
 	"URLShortener-gRPC-Swagger/model"
-	"URLShortener-gRPC-Swagger/shorten/base62"
 	"database/sql"
 	"log"
 	"os"
+
+	base62 "github.com/alextanhongpin/base62"
 
 	"github.com/joho/godotenv"
 

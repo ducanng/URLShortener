@@ -1,9 +1,10 @@
 package shorten
 
 import (
-	"URLShortener-gRPC-Swagger/shorten/base62"
 	"math/rand"
 	"time"
+
+	base62 "github.com/alextanhongpin/base62"
 )
 
 // GenerateShortLink generates a short link

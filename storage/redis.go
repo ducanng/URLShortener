@@ -2,13 +2,14 @@ package storage
 
 import (
 	"URLShortener-gRPC-Swagger/model"
-	"URLShortener-gRPC-Swagger/shorten/base62"
 	"encoding/json"
 	"fmt"
-	"github.com/joho/godotenv"
 	"log"
 	"os"
 	"strconv"
+
+	base62 "github.com/alextanhongpin/base62"
+	"github.com/joho/godotenv"
 
 	"github.com/go-redis/redis"
 )
