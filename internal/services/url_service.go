@@ -1,15 +1,16 @@
 package services
 
 import (
-	"URLShortener/internal/models"
-	"URLShortener/internal/repositories"
-	"URLShortener/pkg/cache"
-	"URLShortener/pkg/database"
 	"encoding/json"
-	"github.com/google/uuid"
 	"log"
-	"net/http"
+	"net/url"
 	"time"
+
+	"github.com/ducanng/URLShortener/internal/models"
+	"github.com/ducanng/URLShortener/internal/repositories"
+	"github.com/ducanng/URLShortener/pkg/cache"
+	"github.com/ducanng/URLShortener/pkg/database"
+	"github.com/google/uuid"
 )
 
 var prefix = "http://localhost:8080/"
@@ -82,15 +83,16 @@ func (us *UrlService) GetUrl(id string) (*models.ShortenedUrl, error) {
 }
 
 func (us *UrlService) IsValidUrl(urlChecking string) bool {
-	response, err := http.Head(urlChecking)
+	u, err := url.ParseRequestURI(urlChecking)
 	if err != nil {
 		return false
 	}
-
-	if response.StatusCode != http.StatusOK {
+	if u.Scheme != "http" && u.Scheme != "https" {
 		return false
 	}
-
+	if u.Host == "" {
+		return false
+	}
 	return true
 }
 

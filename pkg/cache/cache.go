@@ -1,10 +1,11 @@
 package cache
 
 import (
-	"URLShortener/internal/config"
-	"github.com/go-redis/redis"
 	"log"
 	"time"
+
+	"github.com/ducanng/URLShortener/internal/config"
+	"github.com/go-redis/redis"
 )
 
 type Redis struct {
@@ -40,4 +41,16 @@ func (r *Redis) Update(key string, value string, expire time.Duration) error {
 func (r *Redis) Delete(key string) error {
 	log.Println("Deleting from Redis")
 	return r.Client.Del(key).Err()
+}
+
+func (r *Redis) LPush(key string, value string) error {
+	return r.Client.LPush(key, value).Err()
+}
+
+func (r *Redis) LRange(key string, start, stop int64) ([]string, error) {
+	return r.Client.LRange(key, start, stop).Result()
+}
+
+func (r *Redis) Expire(key string, ttl time.Duration) error {
+	return r.Client.Expire(key, ttl).Err()
 }

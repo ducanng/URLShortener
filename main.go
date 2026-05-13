@@ -1,10 +1,10 @@
 package main
 
 import (
-	"URLShortener/internal/config"
-	"URLShortener/pkg/cache"
-	"URLShortener/pkg/database"
-	"URLShortener/router"
+	"github.com/ducanng/URLShortener/internal/config"
+	"github.com/ducanng/URLShortener/pkg/cache"
+	"github.com/ducanng/URLShortener/pkg/database"
+	"github.com/ducanng/URLShortener/router"
 	"log"
 	"os"
 )

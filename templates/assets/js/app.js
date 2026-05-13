@@ -29,10 +29,10 @@ const handleError = (response) => {
         })
         showError();
         hideResult();
-    } else {
-        hideError();
-        return response;
+        throw new Error("Request failed with status: " + response.status);
     }
+    hideError();
+    return response;
 }
 
 /* function to get shortened url with input "url" with fetch and deal with error */
@@ -55,6 +55,7 @@ const shorten = (input) => {
         .then((json) => {
             shortUrl.innerHTML = json.shortUrl;
             showResult();
+            addToHistory(json);
         })
         .catch(error => {
             console.log(error);
@@ -91,6 +92,20 @@ clearButton.addEventListener("click", (event) => {
     clearFields();
 })
 
+
+/* add new entry to history list */
+const addToHistory = (data) => {
+    const list = document.querySelector("#history-list");
+    if (!list) return;
+    const li = document.createElement("li");
+    li.className = "list-group-item d-flex justify-content-between align-items-center";
+    li.innerHTML = `
+        <a class="text-truncate" href="${data.originalUrl}" target="_blank" rel="noopener noreferrer">${data.originalUrl}</a>
+        <a href="${data.shortUrl}" class="badge bg-secondary">${data.shortUrl}</a>
+        <p class="badge bg-secondary">${data.clicks}</p>
+    `;
+    list.prepend(li);
+}
 
 /* display/hide results and errors */
 const showResult = () => {

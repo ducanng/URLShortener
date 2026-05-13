@@ -1,13 +1,14 @@
 package repositories
 
 import (
-	"URLShortener/internal/models"
-	"URLShortener/pkg/cache"
-	"URLShortener/pkg/database"
 	"encoding/json"
 	"log"
 	"time"
 	_ "time"
+
+	"github.com/ducanng/URLShortener/internal/models"
+	"github.com/ducanng/URLShortener/pkg/cache"
+	"github.com/ducanng/URLShortener/pkg/database"
 )
 
 type ShortenedUrlRepository interface {
@@ -40,8 +41,8 @@ func (s *ShortenURLRepository) FindByID(shortUrl string) (*models.ShortenedUrl, 
 }
 
 func (s *ShortenURLRepository) Save(shortUrl *models.ShortenedUrl) error {
-	_, err := s.db.Exec("INSERT INTO shortened_urls (id, original_url, short_url, created_at, clicks) VALUES (?, ?, ?, ?)",
-		shortUrl.GetId(), shortUrl.GetOriginalUrl(), shortUrl.GetShortUrl(), shortUrl.GetCreatedAt())
+	_, err := s.db.Exec("INSERT INTO shortened_urls (id, original_url, short_url, created_at, clicks) VALUES (?, ?, ?, ?, ?)",
+		shortUrl.GetId(), shortUrl.GetOriginalUrl(), shortUrl.GetShortUrl(), shortUrl.GetCreatedAt(), shortUrl.GetClicks())
 	if err != nil {
 		return err
 	}

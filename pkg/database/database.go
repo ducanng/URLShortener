@@ -1,7 +1,7 @@
 package database
 
 import (
-	"URLShortener/internal/config"
+	"github.com/ducanng/URLShortener/internal/config"
 	"database/sql"
 	"log"
 

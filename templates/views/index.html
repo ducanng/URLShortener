@@ -40,13 +40,13 @@
                 <div class="card-header bg-light">
                     <h3 class="h5 mb-0">{{ .Date }}</h3>
                 </div>
-                <ul class="list-group list-group-flush">
+                <ul class="list-group list-group-flush" id="history-list">
                     {{ range .ShortenedUrls }}
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         <a class="text-truncate" href="http://google.com" target="_blank" rel="noopener noreferrer">
-                            {{shorten .OriginalURL}}
+                            {{.OriginalUrl}}
                         </a>
-                        <a href="/{{.ShortUrl}}" class="badge bg-secondary">{{.ShortUrl}}</a>
+                        <a href="{{.ShortUrl}}" class="badge bg-secondary">{{.ShortUrl}}</a>
                         <p class="badge bg-secondary">{{.Clicks}}</p>
                     </li>
                     {{ end }}

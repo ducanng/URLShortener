@@ -1,24 +1,29 @@
 package controllers
 
 import (
-	"URLShortener/internal/models"
-	"URLShortener/internal/services"
-	"URLShortener/pkg/cache"
-	"URLShortener/pkg/database"
-	"encoding/json"
-	"github.com/gin-gonic/gin"
 	"log"
 	"net/http"
-	"net/url"
+	"time"
+
+	"github.com/ducanng/URLShortener/internal/models"
+	"github.com/ducanng/URLShortener/internal/services"
+	"github.com/ducanng/URLShortener/pkg/cache"
+	"github.com/ducanng/URLShortener/pkg/database"
+	"github.com/gin-gonic/gin"
 )
+
+const historyKeyPrefix = "history:"
+const sessionTTL = 30 * 24 * time.Hour
 
 type UrlController struct {
 	urlService *services.UrlService
+	cache      *cache.Redis
 }
 
 func NewController(db *database.DB, cache *cache.Redis) *UrlController {
 	return &UrlController{
 		urlService: services.NewUrlService(db, cache),
+		cache:      cache,
 	}
 }
 
@@ -53,33 +58,16 @@ func (u *UrlController) Create(c *gin.Context) {
 		c.AbortWithError(http.StatusBadRequest, err)
 		return
 	}
-	// Set cookies history of shortened urls
-	var shortenedURLs []string
-	if cookie, err := c.Request.Cookie("shortenedURLs"); err == nil {
-		// Giải mã cookie
-		if value, err := url.QueryUnescape(cookie.Value); err == nil {
-			// Chuyển đổi giá trị cookie từ JSON sang danh sách các URL
-			if err := json.Unmarshal([]byte(value), &shortenedURLs); err != nil {
-				log.Printf("Error while unmarshalling cookie: %v", err)
-			}
-		} else {
-			log.Printf("Error while unescaping cookie: %v", err)
+	// Append URL ID to session history in Redis
+	if sid, exists := c.Get("sessionId"); exists {
+		key := historyKeyPrefix + sid.(string)
+		log.Printf("[history] LPush session=%s id=%s", sid, shortenedUrl.GetId())
+		if err := u.cache.LPush(key, shortenedUrl.GetId()); err != nil {
+			log.Printf("Error while saving history: %v", err)
 		}
-	}
-	byteData, e := json.Marshal(shortenedUrl)
-	if e != nil {
-		log.Printf("Error while marshalling cookie: %v", e)
-	}
-	data := string(byteData)
-	// Thêm shortenedURL vào danh sách
-	shortenedURLs = append(shortenedURLs, data)
-
-	// Chuyển đổi danh sách shortenedURLs sang JSON và lưu vào cookie
-	if jsonValue, err := json.Marshal(shortenedURLs); err == nil {
-		encodedValue := url.QueryEscape(string(jsonValue))
-		c.SetCookie("shortenedURLs", encodedValue, 86400, "", "", false, true)
+		_ = u.cache.Expire(key, sessionTTL)
 	} else {
-		// Xử lý lỗi
+		log.Println("[history] no sessionId in context for POST")
 	}
 	c.JSON(http.StatusCreated, shortenedUrl)
 }

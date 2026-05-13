@@ -1,6 +1,6 @@
-module URLShortener
+module github.com/ducanng/URLShortener
 
-go 1.20
+go 1.26.3
 
 require (
 	github.com/gin-contrib/sessions v0.0.5

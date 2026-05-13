@@ -18,6 +18,6 @@ CREATE TABLE IF NOT EXISTS `users` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO `shortened_urls` (id, original_url, short_url) VALUES ('1234567888', 'https://www.google.com', 'http://localhost:8080/1234567888');
+INSERT INTO `shortened_urls` (id, original_url, short_url) VALUES ('12345678', 'https://www.google.com', 'http://localhost:8080/12345678');
 INSERT INTO `shortened_urls` (id, original_url, short_url) VALUES ('abcdefgh', 'https://www.facebook.com', 'http://localhost:8080/abcdefgh');
 INSERT INTO `shortened_urls` (id, original_url, short_url) VALUES ('1234abcd', 'https://www.youtube.com', 'http://localhost:8080/1234abcd');
