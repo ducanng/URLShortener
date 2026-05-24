@@ -16,51 +16,43 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
-        "/info/{pathShort}": {
+        "/info/{path}": {
             "get": {
-                "description": "Get info of URL, choose between json or grpc response, default is json, if you want grpc, set return_type to grpc",
-                "consumes": [
-                    "application/json"
-                ],
+                "description": "Get info of a shortened URL (original URL, clicks count)",
                 "produces": [
                     "application/json"
                 ],
                 "tags": [
-                    "getinfo"
+                    "info"
                 ],
-                "summary": "Get info of URL",
-                "operationId": "get-info-url",
+                "summary": "Get URL info",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Info URL",
-                        "name": "pathShort",
+                        "example": "\"abc123\"",
+                        "description": "Short URL path",
+                        "name": "path",
                         "in": "path",
                         "required": true
-                    },
-                    {
-                        "enum": [
-                            "json",
-                            "grpc"
-                        ],
-                        "type": "string",
-                        "default": "json",
-                        "description": "Return type",
-                        "name": "return-type",
-                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.Response"
+                            "$ref": "#/definitions/main.URLResponse"
                         }
                     },
-                    "400": {
-                        "description": "Bad Request",
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/main.message"
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
                         }
                     }
                 }
@@ -68,7 +60,7 @@ const docTemplate = `{
         },
         "/shorted": {
             "post": {
-                "description": "Create a shortened URL, choose between json or grpc response, default is json, if you want grpc, set return_type to grpc",
+                "description": "Create a shortened URL from the original URL via grpc-gateway",
                 "consumes": [
                     "application/json"
                 ],
@@ -78,68 +70,59 @@ const docTemplate = `{
                 "tags": [
                     "shorten"
                 ],
-                "summary": "Shorten URL",
-                "operationId": "shorten-url",
+                "summary": "Create shortened URL",
                 "parameters": [
                     {
                         "description": "Original URL",
-                        "name": "original-url",
+                        "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/main.shortenBody"
+                            "$ref": "#/definitions/main.ShortenRequest"
                         }
-                    },
-                    {
-                        "enum": [
-                            "json",
-                            "grpc"
-                        ],
-                        "type": "string",
-                        "default": "json",
-                        "description": "Return type",
-                        "name": "return-type",
-                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/main.Response"
+                            "$ref": "#/definitions/main.URLResponse"
                         }
                     },
-                    "400": {
-                        "description": "Bad Request",
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
-                            "$ref": "#/definitions/main.message"
+                            "$ref": "#/definitions/main.ErrorResponse"
                         }
                     }
                 }
             }
         },
-        "/{pathShort}": {
+        "/{path}": {
             "get": {
-                "description": "Redirect to original URL",
+                "description": "Redirect (HTTP 301) to the original URL using the short path",
                 "tags": [
                     "redirect"
                 ],
                 "summary": "Redirect to original URL",
-                "operationId": "redirect-url",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Shortened URL",
-                        "name": "pathShort",
+                        "example": "\"abc123\"",
+                        "description": "Short URL path",
+                        "name": "path",
                         "in": "path",
                         "required": true
                     }
                 ],
                 "responses": {
-                    "400": {
-                        "description": "Bad Request",
+                    "301": {
+                        "description": "Moved Permanently"
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
-                            "$ref": "#/definitions/main.message"
+                            "$ref": "#/definitions/main.ErrorResponse"
                         }
                     }
                 }
@@ -147,75 +130,54 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "main.GRPCReturn": {
+        "main.ErrorResponse": {
             "type": "object",
             "properties": {
                 "message": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
+                    "type": "string",
+                    "example": "URL not found"
+                }
+            }
+        },
+        "main.ShortenRequest": {
+            "type": "object",
+            "properties": {
                 "url": {
-                    "$ref": "#/definitions/urlshortenerpb.ShortenedURL"
+                    "type": "string",
+                    "example": "https://example.com"
                 }
             }
         },
-        "main.JSONReturn": {
+        "main.ShortenedURL": {
             "type": "object",
             "properties": {
                 "clicks": {
-                    "type": "integer"
-                },
-                "original_url": {
-                    "type": "string"
-                },
-                "shortened_url": {
-                    "type": "string"
-                }
-            }
-        },
-        "main.Response": {
-            "type": "object",
-            "properties": {
-                "grpc": {
-                    "$ref": "#/definitions/main.GRPCReturn"
-                },
-                "json": {
-                    "$ref": "#/definitions/main.JSONReturn"
-                },
-                "message": {
-                    "$ref": "#/definitions/main.message"
-                }
-            }
-        },
-        "main.message": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                }
-            }
-        },
-        "main.shortenBody": {
-            "type": "object",
-            "properties": {
-                "original_url": {
-                    "type": "string"
-                }
-            }
-        },
-        "urlshortenerpb.ShortenedURL": {
-            "type": "object",
-            "properties": {
-                "clicks": {
-                    "type": "integer"
+                    "type": "integer",
+                    "example": 0
                 },
                 "originalURL": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "https://example.com"
                 },
                 "shortenedURL": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "http://localhost:8080/abc123"
+                }
+            }
+        },
+        "main.URLResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "Create short url"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Success"
+                },
+                "url": {
+                    "$ref": "#/definitions/main.ShortenedURL"
                 }
             }
         }

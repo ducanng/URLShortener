@@ -1,50 +1,39 @@
 basePath: /
 definitions:
-  main.GRPCReturn:
+  main.ErrorResponse:
     properties:
       message:
+        example: URL not found
         type: string
-      status:
-        type: string
+    type: object
+  main.ShortenRequest:
+    properties:
       url:
-        $ref: '#/definitions/urlshortenerpb.ShortenedURL'
+        example: https://example.com
+        type: string
     type: object
-  main.JSONReturn:
+  main.ShortenedURL:
     properties:
       clicks:
-        type: integer
-      original_url:
-        type: string
-      shortened_url:
-        type: string
-    type: object
-  main.Response:
-    properties:
-      grpc:
-        $ref: '#/definitions/main.GRPCReturn'
-      json:
-        $ref: '#/definitions/main.JSONReturn'
-      message:
-        $ref: '#/definitions/main.message'
-    type: object
-  main.message:
-    properties:
-      message:
-        type: string
-    type: object
-  main.shortenBody:
-    properties:
-      original_url:
-        type: string
-    type: object
-  urlshortenerpb.ShortenedURL:
-    properties:
-      clicks:
+        example: 0
         type: integer
       originalURL:
+        example: https://example.com
         type: string
       shortenedURL:
+        example: http://localhost:8080/abc123
         type: string
+    type: object
+  main.URLResponse:
+    properties:
+      message:
+        example: Create short url
+        type: string
+      status:
+        example: Success
+        type: string
+      url:
+        $ref: '#/definitions/main.ShortenedURL'
     type: object
 host: localhost:8080
 info:
@@ -53,44 +42,35 @@ info:
   title: URL Shortener API
   version: 1.5.0
 paths:
-  /{pathShort}:
+  /{path}:
     get:
-      description: Redirect to original URL
-      operationId: redirect-url
+      description: Redirect (HTTP 301) to the original URL using the short path
       parameters:
-      - description: Shortened URL
+      - description: Short URL path
+        example: '"abc123"'
         in: path
-        name: pathShort
+        name: path
         required: true
         type: string
       responses:
-        "400":
-          description: Bad Request
+        "301":
+          description: Moved Permanently
+        "404":
+          description: Not Found
           schema:
-            $ref: '#/definitions/main.message'
+            $ref: '#/definitions/main.ErrorResponse'
       summary: Redirect to original URL
       tags:
       - redirect
-  /info/{pathShort}:
+  /info/{path}:
     get:
-      consumes:
-      - application/json
-      description: Get info of URL, choose between json or grpc response, default
-        is json, if you want grpc, set return_type to grpc
-      operationId: get-info-url
+      description: Get info of a shortened URL (original URL, clicks count)
       parameters:
-      - description: Info URL
+      - description: Short URL path
+        example: '"abc123"'
         in: path
-        name: pathShort
+        name: path
         required: true
-        type: string
-      - default: json
-        description: Return type
-        enum:
-        - json
-        - grpc
-        in: query
-        name: return-type
         type: string
       produces:
       - application/json
@@ -98,48 +78,42 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.Response'
-        "400":
-          description: Bad Request
+            $ref: '#/definitions/main.URLResponse'
+        "404":
+          description: Not Found
           schema:
-            $ref: '#/definitions/main.message'
-      summary: Get info of URL
+            $ref: '#/definitions/main.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Get URL info
       tags:
-      - getinfo
+      - info
   /shorted:
     post:
       consumes:
       - application/json
-      description: Create a shortened URL, choose between json or grpc response, default
-        is json, if you want grpc, set return_type to grpc
-      operationId: shorten-url
+      description: Create a shortened URL from the original URL via grpc-gateway
       parameters:
       - description: Original URL
         in: body
-        name: original-url
+        name: body
         required: true
         schema:
-          $ref: '#/definitions/main.shortenBody'
-      - default: json
-        description: Return type
-        enum:
-        - json
-        - grpc
-        in: query
-        name: return-type
-        type: string
+          $ref: '#/definitions/main.ShortenRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/main.Response'
-        "400":
-          description: Bad Request
+            $ref: '#/definitions/main.URLResponse'
+        "500":
+          description: Internal Server Error
           schema:
-            $ref: '#/definitions/main.message'
-      summary: Shorten URL
+            $ref: '#/definitions/main.ErrorResponse'
+      summary: Create shortened URL
       tags:
       - shorten
 schemes:

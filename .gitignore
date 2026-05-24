@@ -1,0 +1,4 @@
+.agents
+.env
+tests/**
+!tests/**/*.py

@@ -2,7 +2,9 @@ syntax = "proto3";
 
 package urlshortener;
 
-option go_package="proto/urlshortenerpb";
+import "google/api/annotations.proto";
+
+option go_package="github.com/ducanng/URLShortener/proto/urlshortenerpb";
 
 message CreateURLRequest {
     string url = 1;
@@ -22,6 +24,15 @@ message Response {
 }
 
 service URLShortenerService {
-    rpc CreateURL(CreateURLRequest) returns (Response){}
-    rpc GetURL(GetURLRequest) returns (Response){}
+    rpc CreateURL(CreateURLRequest) returns (Response){
+        option (google.api.http) = {
+            post: "/shorted"
+            body: "*"
+        };
+    }
+    rpc GetURL(GetURLRequest) returns (Response){
+        option (google.api.http) = {
+            get: "/info/{URL}"
+        };
+    }
 }

@@ -1,10 +1,12 @@
 package storage
 
 import (
-	"URLShortener-gRPC-Swagger/model"
 	"database/sql"
 	"log"
 	"os"
+	"time"
+
+	"github.com/ducanng/URLShortener/model"
 
 	base62 "github.com/alextanhongpin/base62"
 
@@ -20,17 +22,23 @@ type SQLStore struct {
 
 func (s *SQLStore) Init() {
 	// Load .env file
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatalf("err loading: %v", err)
+	if err := godotenv.Load(); err != nil {
+		log.Printf("warn: .env not found, using environment variables: %v", err)
 	}
 	// Connect to the database
+	var err error
 	s.Client, err = sql.Open("postgres", os.Getenv("DB"))
 	if err != nil {
 		log.Fatalf("SQL can't not connect: %v", err)
 	}
+
+	// Connection pool config: (CPU×2)+spindle = (8×2)+1 = 17 for 8 vCPU SSD
+	s.Client.SetMaxOpenConns(17)
+	s.Client.SetMaxIdleConns(17)
+	s.Client.SetConnMaxLifetime(5 * time.Minute)
+	s.Client.SetConnMaxIdleTime(1 * time.Minute)
 	//Read file .sql
-	file, err := os.ReadFile("storage\\init.sql")
+	file, err := os.ReadFile("storage/init.sql")
 	if err != nil {
 		log.Fatalf("Can't read sql file: %v", err)
 	}
@@ -50,7 +58,7 @@ func (s *SQLStore) Save(entry model.URLEntry) error {
 		entry.Clicks,
 	)
 	if err != nil {
-		log.Fatalf("Can't execute sql file: %v", err)
+		log.Printf("Error inserting to db: %v", err)
 	}
 	return err
 }
@@ -61,7 +69,7 @@ func (s *SQLStore) Load(key string) (model.URLEntry, error) {
 	err := s.Client.QueryRow("SELECT * FROM url_list WHERE id = $1", id).
 		Scan(&value.Id, &value.OriginalURL, &value.ShortedURL, &value.Clicks)
 	if err != nil {
-		log.Fatalf("Can't execute sql file: %v", err)
+		log.Printf("Error loading from db: %v", err)
 	}
 	return value, err
 }
@@ -73,8 +81,7 @@ func (s *SQLStore) UpdateClicks(path string, click int32) {
 		click,
 		id,
 	)
-
 	if err != nil {
-		log.Fatalf("Can't execute sql file: %v", err)
+		log.Printf("Error updating clicks in db: %v", err)
 	}
 }

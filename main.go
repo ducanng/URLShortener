@@ -1,51 +1,136 @@
 package main
 
 import (
-	"URLShortener-gRPC-Swagger/client"
-	_ "URLShortener-gRPC-Swagger/docs"
-	"URLShortener-gRPC-Swagger/proto/urlshortenerpb"
-	"URLShortener-gRPC-Swagger/server"
-	"URLShortener-gRPC-Swagger/storage"
-	"fmt"
+	"context"
 	"log"
-	"net"
 	"net/http"
-	"net/url"
-	"sync"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"google.golang.org/grpc/credentials/insecure"
+	"github.com/ducanng/URLShortener/client"
+	_ "github.com/ducanng/URLShortener/docs"
+	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
+	"github.com/ducanng/URLShortener/server"
+	"github.com/ducanng/URLShortener/storage"
+	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
+	ginprometheus "github.com/zsais/go-gin-prometheus"
+	"golang.org/x/sync/errgroup"
 
+	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"google.golang.org/grpc"
-
-	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
-//goland:noinspection ALL
-type shortenBody struct {
-	OriginalURL string `json:"original_url"`
-}
-type message struct {
-	Message string `json:"message"`
-}
-type JSONReturn struct {
-	OriginalURL  string `json:"original_url"`
-	ShortenedURL string `json:"shortened_url"`
-	Clicks       int32  `json:"clicks"`
-}
-type GRPCReturn struct {
-	*urlshortenerpb.Response
-}
-type Response struct {
-	Reply message    `json:"message"`
-	GRPC  GRPCReturn `json:"grpc"`
-	JSON  JSONReturn `json:"json"`
+// ShortenRequest represents the JSON body for creating a short URL.
+type ShortenRequest struct {
+	URL string `json:"url" example:"https://example.com"`
 }
 
-type IClient struct {
-	CC   client.Client
-	body shortenBody
+// URLResponse represents the JSON response from grpc-gateway.
+type URLResponse struct {
+	Message string        `json:"message" example:"Create short url"`
+	Status  string        `json:"status" example:"Success"`
+	URL     *ShortenedURL `json:"url,omitempty"`
+}
+
+// ShortenedURL represents URL details in the response.
+type ShortenedURL struct {
+	OriginalURL  string `json:"originalURL" example:"https://example.com"`
+	ShortenedURL string `json:"shortenedURL" example:"http://localhost:8080/abc123"`
+	Clicks       int32  `json:"clicks" example:"0"`
+}
+
+// ErrorResponse represents an error response.
+type ErrorResponse struct {
+	Message string `json:"message" example:"URL not found"`
+}
+
+// newHTTPServer sets up the Gin router with grpc-gateway, Swagger, Prometheus,
+// and the redirect handler, then returns a configured *http.Server.
+func newHTTPServer(ctx context.Context, grpcClient *client.Client) *http.Server {
+	// grpc-gateway: reverse proxy REST → gRPC (auto-generated from proto annotations)
+	gwMux := runtime.NewServeMux()
+	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	if err := urlshortenerpb.RegisterURLShortenerServiceHandlerFromEndpoint(
+		ctx, gwMux, "localhost:50051", dialOpts,
+	); err != nil {
+		log.Fatalf("Failed to register grpc-gateway: %v", err)
+	}
+
+	router := gin.Default()
+
+	// Prometheus metrics — exposes GET /metrics
+	p := ginprometheus.NewPrometheus("gin")
+	p.Use(router)
+
+	// grpc-gateway handles JSON API
+	router.POST("/shorted", handleCreateURL(gwMux))
+	router.GET("/info/:path", handleGetURL(gwMux))
+
+	// Swagger docs
+	router.GET("/docs", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/docs/index.html")
+	})
+	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	// Redirect
+	router.GET("/:path", handleRedirect(grpcClient))
+
+	return &http.Server{
+		Addr:    ":8080",
+		Handler: router.Handler(),
+	}
+}
+
+// handleCreateURL godoc
+// @Summary      Create shortened URL
+// @Description  Create a shortened URL from the original URL via grpc-gateway
+// @Tags         shorten
+// @Accept       json
+// @Produce      json
+// @Param        body body ShortenRequest true "Original URL"
+// @Success      200 {object} URLResponse
+// @Failure      500 {object} ErrorResponse
+// @Router       /shorted [post]
+func handleCreateURL(gwMux *runtime.ServeMux) gin.HandlerFunc {
+	return gin.WrapH(gwMux)
+}
+
+// handleGetURL godoc
+// @Summary      Get URL info
+// @Description  Get info of a shortened URL (original URL, clicks count)
+// @Tags         info
+// @Produce      json
+// @Param        path path string true "Short URL path" example("abc123")
+// @Success      200 {object} URLResponse
+// @Failure      404 {object} ErrorResponse
+// @Failure      500 {object} ErrorResponse
+// @Router       /info/{path} [get]
+func handleGetURL(gwMux *runtime.ServeMux) gin.HandlerFunc {
+	return gin.WrapH(gwMux)
+}
+
+// handleRedirect godoc
+// @Summary      Redirect to original URL
+// @Description  Redirect (HTTP 301) to the original URL using the short path
+// @Tags         redirect
+// @Param        path path string true "Short URL path" example("abc123")
+// @Success      301 "Moved Permanently"
+// @Failure      404 {object} ErrorResponse
+// @Router       /{path} [get]
+func handleRedirect(grpcClient *client.Client) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		path := c.Param("path")
+		res, err := grpcClient.CC.GetURL(c.Request.Context(), &urlshortenerpb.GetURLRequest{URL: path})
+		if err != nil || res.GetStatus() == "Failed" {
+			c.JSON(http.StatusNotFound, gin.H{"message": "URL not found"})
+			return
+		}
+		c.Redirect(http.StatusMovedPermanently, res.GetUrl().GetOriginalURL())
+	}
 }
 
 // @title URL Shortener API
@@ -55,179 +140,67 @@ type IClient struct {
 // @schemes http https
 // @host localhost:8080
 // @securityDefinitions.basic  BasicAuth
-var wg = sync.WaitGroup{}
-
 func RunServer() {
-	wg.Add(2)
-	// Init redis
-	redis := storage.Redis{}
-	redis.Init()
-	// Init sql
+	// Context that cancels on SIGINT / SIGTERM
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	// Init storage
+	redisStore := storage.Redis{}
+	redisStore.Init()
 	sqlStore := storage.SQLStore{}
 	sqlStore.Init()
 
-	log.Println("Server is running...")
-	// create server grpc
-	s := grpc.NewServer()
-	lis, err := net.Listen("tcp", ":50051")
+	// gRPC server
+	grpcServer := server.NewGRPCServer(&redisStore, &sqlStore)
+
+	// gRPC client (used by HTTP gateway + redirect handler)
+	grpcClient, cleanup, err := client.NewClient("localhost:50051")
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		log.Fatalf("Failed to create gRPC client: %v", err)
 	}
-	// register server
-	urlshortenerpb.RegisterURLShortenerServiceServer(s, &server.Server{Redis: &redis, DB: &sqlStore})
+	defer cleanup()
 
-	go func() {
-		log.Println("Starting server ...")
-		if err := s.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
-			return
+	// HTTP server (Gin + grpc-gateway + Swagger + Prometheus)
+	httpSrv := newHTTPServer(ctx, grpcClient)
+
+	// Start servers with errgroup
+	g, gCtx := errgroup.WithContext(ctx)
+
+	g.Go(func() error { return grpcServer.ListenAndServe() })
+
+	g.Go(func() error {
+		log.Println("HTTP gateway starting on :8080")
+		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			return err
 		}
-		wg.Done()
-	}()
-	// create server http
-	go func() {
+		return nil
+	})
 
-		var c IClient
-		cc, err := grpc.Dial("localhost:50051", grpc.WithTransportCredentials(insecure.NewCredentials()))
-		if err != nil {
-			log.Fatalf("err while dial %v", err)
+	// Graceful shutdown
+	g.Go(func() error {
+		<-gCtx.Done()
+		log.Println("Shutting down servers...")
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("HTTP shutdown error: %v", err)
 		}
-		defer cc.Close()
-		c.CC.CC = urlshortenerpb.NewURLShortenerServiceClient(cc)
 
-		// create gin engine
-		router := gin.Default()
-		// create routes
-		router.GET("/info/:path", c.GetInfoURL())
-		router.POST("/shorted", c.ShortenedURL())
-		router.GET("/:path", c.Redirect()) //sqlStore, redis))
-		// docs route
-		router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-		// run the Gin server
-		router.Run()
-		wg.Done()
-	}()
-	wg.Wait()
+		grpcShutdownCtx, grpcCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer grpcCancel()
+		grpcServer.Shutdown(grpcShutdownCtx)
+
+		log.Println("All servers stopped gracefully")
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		log.Fatalf("Server exited with error: %v", err)
+	}
 }
 
 func main() {
 	RunServer()
-	//test grpc
-
-}
-
-// ShortenedURL
-// @Summary Shorten URL
-// @ID shorten-url
-// @Description Create a shortened URL, choose between json or grpc response, default is json, if you want grpc, set return_type to grpc
-// @Tags shorten
-// @Accept  json
-// @Produce  json
-// @Param original-url body shortenBody true "Original URL"
-// @Param return-type query string false "Return type" Enums(json, grpc) default(json)
-// @Success 200 {object} Response
-// @Failure 400 {object} message
-// @Router /shorted [post]
-func (cli *IClient) ShortenedURL() gin.HandlerFunc {
-	//check originalURL is valid
-	return func(c *gin.Context) {
-		t := c.Query("return-type")
-		fmt.Println(t)
-		if err := c.BindJSON(&cli.body); err != nil {
-			c.JSON(http.StatusBadRequest, message{Message: "Invalid body"})
-			return
-		}
-		_, urlErr := url.ParseRequestURI(cli.body.OriginalURL)
-		if urlErr != nil {
-			c.JSON(http.StatusBadRequest, message{Message: "Invalid URL"})
-			return
-		}
-		res := cli.CC.CallCreateURL(cli.body.OriginalURL)
-
-		if t == "grpc" {
-			c.JSON(http.StatusOK, Response{
-				GRPC: GRPCReturn{
-					res,
-				},
-			})
-			return
-		} else {
-			c.JSON(http.StatusOK, Response{
-				Reply: message{Message: res.GetMessage()},
-				JSON: JSONReturn{
-					OriginalURL:  res.GetUrl().GetOriginalURL(),
-					ShortenedURL: res.GetUrl().GetShortenedURL(),
-					Clicks:       res.GetUrl().GetClicks(),
-				},
-			})
-			return
-		}
-	}
-	// return response
-	//c.JSON(http.StatusOK, response{message{Message: "Success"}, *res.GetUrl()})
-}
-
-// Redirect
-// @Summary Redirect to original URL
-// @ID redirect-url
-// @Description Redirect to original URL
-// @Tags redirect
-// @Param pathShort path string true "Shortened URL"
-// @Failure 400 {object} message
-// @Router /{pathShort} [get]
-func (cli *IClient) Redirect( /*sqlStore storage.SQLStore, redis storage.Redis*/ ) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		path := c.Param("path")
-		if path == "" {
-			c.JSON(http.StatusBadRequest, message{Message: "Invalid path"})
-			return
-		}
-		res := cli.CC.CallGetURL(path)
-		if res.GetStatus() == "Failed" {
-			c.JSON(http.StatusNotFound, message{Message: "URL not found"})
-			return
-		}
-		
-		c.Redirect(http.StatusMovedPermanently, res.GetUrl().GetOriginalURL())
-	}
-}
-
-// GetInfoURL
-// @Summary Get info of URL
-// @ID get-info-url
-// @Description Get info of URL, choose between json or grpc response, default is json, if you want grpc, set return_type to grpc
-// @Tags getinfo
-// @Accept  json
-// @Produce  json
-// @Param pathShort path string true "Info URL"
-// @Param return-type query string false "Return type" Enums(json, grpc) default(json)
-// @Success 200 {object} Response
-// @Failure 400 {object} message
-// @Router /info/{pathShort} [get]
-func (cli *IClient) GetInfoURL() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		t := c.Query("return-type")
-		path := c.Param("path")
-		if path == "" {
-			c.JSON(http.StatusBadRequest, message{Message: "Invalid ID"})
-			return
-		}
-		res := cli.CC.CallGetURL(path)
-		if t == "grpc" {
-			c.JSON(http.StatusOK, Response{
-				GRPC: GRPCReturn{
-					res,
-				},
-			})
-		} else {
-			c.JSON(http.StatusOK, Response{
-				Reply: message{Message: res.GetMessage()},
-				JSON: JSONReturn{
-					OriginalURL:  res.GetUrl().GetOriginalURL(),
-					ShortenedURL: res.GetUrl().GetShortenedURL(),
-					Clicks:       res.GetUrl().GetClicks(),
-				},
-			})
-		}
-	}
 }
