@@ -3,11 +3,18 @@ syntax = "proto3";
 package urlshortener;
 
 import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
 
 option go_package="github.com/ducanng/URLShortener/proto/urlshortenerpb";
 
 message CreateURLRequest {
     string url = 1;
+    // Optional. Absolute expiry time. If omitted and no_expire=false the
+    // server applies a default TTL of 30 days.
+    google.protobuf.Timestamp expires_at = 2;
+    // Optional. When true the short URL never expires. Mutually exclusive
+    // with expires_at.
+    bool no_expire = 3;
 }
 message GetURLRequest {
     string URL = 1;
@@ -16,6 +23,8 @@ message ShortenedURL {
     string originalURL = 1;
     string shortenedURL = 2;
     int32  clicks = 3;
+    // Null when the short URL never expires.
+    google.protobuf.Timestamp expires_at = 4;
 }
 message Response {
     string message = 1;

@@ -10,6 +10,7 @@ import (
 	_ "google.golang.org/genproto/googleapis/api/annotations"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
 	sync "sync"
 	unsafe "unsafe"
@@ -23,8 +24,14 @@ const (
 )
 
 type CreateURLRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Url           string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	state protoimpl.MessageState `protogen:"open.v1"`
+	Url   string                 `protobuf:"bytes,1,opt,name=url,proto3" json:"url,omitempty"`
+	// Optional. Absolute expiry time. If omitted and no_expire=false the
+	// server applies a default TTL of 30 days.
+	ExpiresAt *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
+	// Optional. When true the short URL never expires. Mutually exclusive
+	// with expires_at.
+	NoExpire      bool `protobuf:"varint,3,opt,name=no_expire,json=noExpire,proto3" json:"no_expire,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -64,6 +71,20 @@ func (x *CreateURLRequest) GetUrl() string {
 		return x.Url
 	}
 	return ""
+}
+
+func (x *CreateURLRequest) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
+}
+
+func (x *CreateURLRequest) GetNoExpire() bool {
+	if x != nil {
+		return x.NoExpire
+	}
+	return false
 }
 
 type GetURLRequest struct {
@@ -111,10 +132,12 @@ func (x *GetURLRequest) GetURL() string {
 }
 
 type ShortenedURL struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	OriginalURL   string                 `protobuf:"bytes,1,opt,name=originalURL,proto3" json:"originalURL,omitempty"`
-	ShortenedURL  string                 `protobuf:"bytes,2,opt,name=shortenedURL,proto3" json:"shortenedURL,omitempty"`
-	Clicks        int32                  `protobuf:"varint,3,opt,name=clicks,proto3" json:"clicks,omitempty"`
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	OriginalURL  string                 `protobuf:"bytes,1,opt,name=originalURL,proto3" json:"originalURL,omitempty"`
+	ShortenedURL string                 `protobuf:"bytes,2,opt,name=shortenedURL,proto3" json:"shortenedURL,omitempty"`
+	Clicks       int32                  `protobuf:"varint,3,opt,name=clicks,proto3" json:"clicks,omitempty"`
+	// Null when the short URL never expires.
+	ExpiresAt     *timestamppb.Timestamp `protobuf:"bytes,4,opt,name=expires_at,json=expiresAt,proto3" json:"expires_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -168,6 +191,13 @@ func (x *ShortenedURL) GetClicks() int32 {
 		return x.Clicks
 	}
 	return 0
+}
+
+func (x *ShortenedURL) GetExpiresAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.ExpiresAt
+	}
+	return nil
 }
 
 type Response struct {
@@ -234,15 +264,20 @@ var File_proto_urlshortener_proto protoreflect.FileDescriptor
 
 const file_proto_urlshortener_proto_rawDesc = "" +
 	"\n" +
-	"\x18proto/urlshortener.proto\x12\furlshortener\x1a\x1cgoogle/api/annotations.proto\"$\n" +
+	"\x18proto/urlshortener.proto\x12\furlshortener\x1a\x1cgoogle/api/annotations.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"|\n" +
 	"\x10CreateURLRequest\x12\x10\n" +
-	"\x03url\x18\x01 \x01(\tR\x03url\"!\n" +
+	"\x03url\x18\x01 \x01(\tR\x03url\x129\n" +
+	"\n" +
+	"expires_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\x12\x1b\n" +
+	"\tno_expire\x18\x03 \x01(\bR\bnoExpire\"!\n" +
 	"\rGetURLRequest\x12\x10\n" +
-	"\x03URL\x18\x01 \x01(\tR\x03URL\"l\n" +
+	"\x03URL\x18\x01 \x01(\tR\x03URL\"\xa7\x01\n" +
 	"\fShortenedURL\x12 \n" +
 	"\voriginalURL\x18\x01 \x01(\tR\voriginalURL\x12\"\n" +
 	"\fshortenedURL\x18\x02 \x01(\tR\fshortenedURL\x12\x16\n" +
-	"\x06clicks\x18\x03 \x01(\x05R\x06clicks\"j\n" +
+	"\x06clicks\x18\x03 \x01(\x05R\x06clicks\x129\n" +
+	"\n" +
+	"expires_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\texpiresAt\"j\n" +
 	"\bResponse\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12\x16\n" +
 	"\x06status\x18\x02 \x01(\tR\x06status\x12,\n" +
@@ -265,22 +300,25 @@ func file_proto_urlshortener_proto_rawDescGZIP() []byte {
 
 var file_proto_urlshortener_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_proto_urlshortener_proto_goTypes = []any{
-	(*CreateURLRequest)(nil), // 0: urlshortener.CreateURLRequest
-	(*GetURLRequest)(nil),    // 1: urlshortener.GetURLRequest
-	(*ShortenedURL)(nil),     // 2: urlshortener.ShortenedURL
-	(*Response)(nil),         // 3: urlshortener.Response
+	(*CreateURLRequest)(nil),      // 0: urlshortener.CreateURLRequest
+	(*GetURLRequest)(nil),         // 1: urlshortener.GetURLRequest
+	(*ShortenedURL)(nil),          // 2: urlshortener.ShortenedURL
+	(*Response)(nil),              // 3: urlshortener.Response
+	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
 }
 var file_proto_urlshortener_proto_depIdxs = []int32{
-	2, // 0: urlshortener.Response.url:type_name -> urlshortener.ShortenedURL
-	0, // 1: urlshortener.URLShortenerService.CreateURL:input_type -> urlshortener.CreateURLRequest
-	1, // 2: urlshortener.URLShortenerService.GetURL:input_type -> urlshortener.GetURLRequest
-	3, // 3: urlshortener.URLShortenerService.CreateURL:output_type -> urlshortener.Response
-	3, // 4: urlshortener.URLShortenerService.GetURL:output_type -> urlshortener.Response
-	3, // [3:5] is the sub-list for method output_type
-	1, // [1:3] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	4, // 0: urlshortener.CreateURLRequest.expires_at:type_name -> google.protobuf.Timestamp
+	4, // 1: urlshortener.ShortenedURL.expires_at:type_name -> google.protobuf.Timestamp
+	2, // 2: urlshortener.Response.url:type_name -> urlshortener.ShortenedURL
+	0, // 3: urlshortener.URLShortenerService.CreateURL:input_type -> urlshortener.CreateURLRequest
+	1, // 4: urlshortener.URLShortenerService.GetURL:input_type -> urlshortener.GetURLRequest
+	3, // 5: urlshortener.URLShortenerService.CreateURL:output_type -> urlshortener.Response
+	3, // 6: urlshortener.URLShortenerService.GetURL:output_type -> urlshortener.Response
+	5, // [5:7] is the sub-list for method output_type
+	3, // [3:5] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_proto_urlshortener_proto_init() }

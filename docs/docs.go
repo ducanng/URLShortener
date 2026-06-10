@@ -124,6 +124,12 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/main.ErrorResponse"
                         }
+                    },
+                    "410": {
+                        "description": "Gone",
+                        "schema": {
+                            "$ref": "#/definitions/main.ErrorResponse"
+                        }
                     }
                 }
             }
@@ -142,6 +148,14 @@ const docTemplate = `{
         "main.ShortenRequest": {
             "type": "object",
             "properties": {
+                "expires_at": {
+                    "type": "string",
+                    "example": "2026-12-31T00:00:00Z"
+                },
+                "no_expire": {
+                    "type": "boolean",
+                    "example": false
+                },
                 "url": {
                     "type": "string",
                     "example": "https://example.com"
@@ -154,6 +168,10 @@ const docTemplate = `{
                 "clicks": {
                     "type": "integer",
                     "example": 0
+                },
+                "expires_at": {
+                    "type": "string",
+                    "example": "2026-12-31T00:00:00Z"
                 },
                 "originalURL": {
                     "type": "string",

@@ -103,7 +103,7 @@
       "gridPos": { "h": 8, "w": 6, "x": 12, "y": 16 },
       "targets": [
         {
-          "expr": "redis_keyspace_hits_total / (redis_keyspace_hits_total + redis_keyspace_misses_total) * 100",
+          "expr": "rate(redis_keyspace_hits_total[1m]) / (rate(redis_keyspace_hits_total[1m]) + rate(redis_keyspace_misses_total[1m])) * 100",
           "legendFormat": "hit ratio",
           "refId": "A"
         }

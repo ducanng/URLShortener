@@ -1,0 +1,38 @@
+# Promtail reads Docker container logs via the Docker socket and ships them
+# to Loki. It auto-discovers containers, attaches the container name as a
+# label, and parses the JSON Zap output so individual fields (level, msg, ts,
+# caller, ...) become structured fields queryable from Grafana.
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Container name (strip the leading slash Docker returns)
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container'
+      # Compose service name
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service'
+    pipeline_stages:
+      # Zap emits one JSON object per line — parse it so we can label by level
+      # and keep the original message in `msg`.
+      - json:
+          expressions:
+            level: level
+            msg: msg
+            ts: ts
+            caller: caller
+      - labels:
+          level:

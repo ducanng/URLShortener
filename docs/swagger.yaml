@@ -8,6 +8,12 @@ definitions:
     type: object
   main.ShortenRequest:
     properties:
+      expires_at:
+        example: "2026-12-31T00:00:00Z"
+        type: string
+      no_expire:
+        example: false
+        type: boolean
       url:
         example: https://example.com
         type: string
@@ -17,6 +23,9 @@ definitions:
       clicks:
         example: 0
         type: integer
+      expires_at:
+        example: "2026-12-31T00:00:00Z"
+        type: string
       originalURL:
         example: https://example.com
         type: string
@@ -57,6 +66,10 @@ paths:
           description: Moved Permanently
         "404":
           description: Not Found
+          schema:
+            $ref: '#/definitions/main.ErrorResponse'
+        "410":
+          description: Gone
           schema:
             $ref: '#/definitions/main.ErrorResponse'
       summary: Redirect to original URL

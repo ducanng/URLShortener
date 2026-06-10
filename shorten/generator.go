@@ -1,15 +1,12 @@
 package shorten
 
 import (
-	"math/rand"
-	"time"
-
 	base62 "github.com/alextanhongpin/base62"
 )
 
-// GenerateShortLink generates a short link
-func GenerateShortLink() string {
-	id := rand.New(rand.NewSource(time.Now().UnixNano()))
-	shortPath := base62.Encode(id.Uint64())
-	return shortPath[:5]
+// ShortPathFromID encodes a sequential ID from the Redis global counter into
+// a base62 short path. IDs are monotonically increasing so the path grows
+// gradually: 1 char for the first 62 URLs, 2 for the next 3844, etc.
+func ShortPathFromID(id int64) string {
+	return base62.Encode(uint64(id))
 }
