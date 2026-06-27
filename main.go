@@ -64,7 +64,7 @@ type ErrorResponse struct {
 // instrumentation, the trace-id middleware, and the redirect handler. The
 // /metrics endpoint is NOT mounted here — it lives on the dedicated metrics
 // server (port 7070) for security and load isolation.
-func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *client.Client) *http.Server {
+func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *client.Client, redisStore *storage.Redis, sqlStore *storage.SQLStore) *http.Server {
 	// grpc-gateway: REST → gRPC reverse proxy, generated from proto annotations.
 	// runtime.WithMetadata forwards the X-Trace-Id HTTP header into gRPC
 	// metadata so the server-side trace interceptor can pick it up and keep
@@ -85,6 +85,29 @@ func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *client.C
 	}
 
 	router := gin.Default()
+
+	// Health endpoints — registered BEFORE Prometheus middleware so they
+	// don't inflate request metrics. /healthz is a pure liveness probe
+	// (always 200 while the process is up); /readyz is a readiness probe
+	// that verifies the app can actually serve traffic by pinging Redis
+	// and Postgres. Used by Nginx passive HC, Docker healthcheck, and
+	// rolling-deploy gates.
+	router.GET("/healthz", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+	router.GET("/readyz", func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+		if err := sqlStore.Client.PingContext(ctx); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "component": "postgres", "error": err.Error()})
+			return
+		}
+		if _, err := redisStore.Client.Ping().Result(); err != nil {
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "component": "redis", "error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ready"})
+	})
 
 	// Trace-ID first so every downstream middleware/handler logs with it.
 	router.Use(logger.TraceIDMiddleware())
@@ -240,7 +263,7 @@ func RunServer() {
 	defer cleanup()
 
 	// HTTP server (Gin + grpc-gateway + Swagger + Prometheus middleware + trace_id)
-	httpSrv := newHTTPServer(ctx, log, grpcClient)
+	httpSrv := newHTTPServer(ctx, log, grpcClient, redisStore, sqlStore)
 
 	// Dedicated metrics server on :7070 — isolated from public :8080.
 	metricsSrv := metrics.NewServer(metrics.DefaultAddr)

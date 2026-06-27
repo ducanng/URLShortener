@@ -1,6 +1,6 @@
 # URL Shortener
 
-A production-style URL shortening service written in Go. It exposes both a
+A URL shortening service written in Go. It exposes both a
 gRPC API and a REST gateway, persists data in PostgreSQL, caches reads in
 Redis, and ships with structured logging, Prometheus metrics, and database
 schema migrations baked into the binary.
@@ -10,13 +10,10 @@ schema migrations baked into the binary.
 - Create short URLs from any long URL.
 - Optional expiry per URL — defaults to 30 days, supports an explicit
   `expires_at`, or `no_expire: true` for permanent links.
-- Cache-aside reads from Redis; cold reads fall back to PostgreSQL.
-- HTTP redirect endpoint distinguishes `404 Not Found` from `410 Gone`
-  (expired) so clients can render different UX for the two cases.
-- Schema migrations embedded in the binary and applied via a dedicated
-  CLI / Compose service — no manual SQL on production.
-- Structured logs with trace-id propagation across the gRPC ↔ HTTP
-  boundary, plus Prometheus metrics for the app and infrastructure.
+- Redirect endpoint with proper HTTP status codes (404 for not found, 410 for expired) and count click.
+- Get short URL info by code.
+- No authentication.
+- No security short URL.
 
 ## Tech Stack
 
