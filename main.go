@@ -137,9 +137,39 @@ func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *client.C
 
 	router.GET("/:path", handleRedirect(grpcClient))
 
+	// Timeouts bracket Nginx's upstream timeouts (see nginx/nginx.conf).
+	// The invariant on EVERY axis is: Go timeout > Nginx timeout — Nginx
+	// (the outer LB) always decides "too slow" first, Go is the safety
+	// net. This avoids races where both ends time out simultaneously and
+	// fight over which error code reaches the client.
+	//
+	//   Axis     Nginx                      Go            Buffer
+	//   ─────────────────────────────────────────────────────────
+	//   Idle     keepalive_timeout 60s   →  IdleTimeout 75s   +15s
+	//   Read     proxy_send_timeout 30s  →  ReadTimeout 35s    +5s
+	//   Write    proxy_read_timeout 30s  →  WriteTimeout 35s   +5s
+	//
+	// Idle axis: Nginx closes idle keepalive first → sends FIN to Go →
+	// Go cleans up passively. If Go closed first, Nginx could race and
+	// POST a new request onto a socket Go just half-closed.
+	//
+	// Read axis: when client uploads slowly, Nginx aborts at 30s (504 to
+	// client). Go's 35s lets the in-flight handler unwind cleanly.
+	//
+	// Write axis: when handler responds slowly, Nginx aborts read at 30s
+	// (504 + closes upstream). Go writes hit EPIPE at handler return —
+	// logged gracefully, no goroutine leak.
+	//
+	// ReadHeaderTimeout caps slow-loris attacks where a client dribbles
+	// headers one byte per second; cheaper than ReadTimeout because it
+	// only arms a deadline during the header phase.
 	return &http.Server{
-		Addr:    ":8080",
-		Handler: router.Handler(),
+		Addr:              ":8080",
+		Handler:           router.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       35 * time.Second,
+		WriteTimeout:      35 * time.Second,
+		IdleTimeout:       75 * time.Second,
 	}
 }
 
