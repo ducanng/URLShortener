@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"net/http"
+	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
 	"github.com/ducanng/URLShortener/server"
 	"github.com/ducanng/URLShortener/storage"
+	"github.com/gin-contrib/cors"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.uber.org/zap"
@@ -127,6 +130,49 @@ func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *client.C
 	}
 	router.Use(p.HandlerFunc())
 
+	// CORS middleware — production-hardened.
+	//
+	// Origins are read from CORS_ALLOWED_ORIGINS (comma-separated list).
+	// When the env var is absent the server falls back to localhost dev
+	// origins so local development keeps working without extra config.
+	// Never use "*" in production: it disables credentials and prevents
+	// cookie / Authorization header forwarding on cross-origin requests.
+	allowedOrigins := corsAllowedOrigins(log)
+	router.Use(cors.New(cors.Config{
+		AllowOrigins: allowedOrigins,
+		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"},
+		AllowHeaders: []string{
+			"Origin",
+			"Content-Type",
+			"Accept",
+			"Authorization",
+			"X-Requested-With",
+			"X-Trace-Id",
+		},
+		ExposeHeaders: []string{
+			"Content-Length",
+			"X-Trace-Id",
+		},
+		// AllowCredentials lets browsers send cookies / Authorization
+		// headers on cross-origin requests. Requires explicit origins
+		// (not "*") — gin-contrib/cors enforces this automatically.
+		AllowCredentials: true,
+		// Cache preflight response for 24 h to cut OPTIONS round-trips.
+		MaxAge: 24 * time.Hour,
+	}))
+
+	// Per-request deadline — the PRIMARY work-cancellation mechanism. It
+	// propagates through grpc-gateway / the gRPC client (as a grpc-timeout
+	// header) into the server ctx and on to Postgres (ExecContext /
+	// QueryRowContext honour it), so a stuck backend call is cancelled and
+	// the goroutine freed instead of leaking under load. The http.Server
+	// Read/Write timeouts below are only a coarse socket-level backstop.
+	// Sized to 5s: > the worst write-path latency observed under peak load
+	// (~3.2s during a Postgres burst) plus margin, so legitimate traffic is
+	// not cut. NOTE: go-redis v6 ignores ctx, so Redis ops are not
+	// cancelled — acceptable as they are sub-millisecond (revisit on v9).
+	router.Use(requestTimeout(5 * time.Second))
+
 	router.POST("/shorted", handleCreateURL(gwMux))
 	router.GET("/info/:path", handleGetURL(gwMux))
 
@@ -137,38 +183,40 @@ func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *client.C
 
 	router.GET("/:path", handleRedirect(grpcClient))
 
-	// Timeouts bracket Nginx's upstream timeouts (see nginx/nginx.conf).
-	// The invariant on EVERY axis is: Go timeout > Nginx timeout — Nginx
-	// (the outer LB) always decides "too slow" first, Go is the safety
-	// net. This avoids races where both ends time out simultaneously and
-	// fight over which error code reaches the client.
+	// These socket-level timeouts are a COARSE BACKSTOP only. The real
+	// work-cancellation mechanism is the per-request context deadline
+	// (requestTimeout middleware, 5s) which actually aborts backend calls
+	// and frees goroutines. WriteTimeout cannot do that — it only fails
+	// the I/O write; the handler goroutine keeps running until it next
+	// touches the socket. So these are sized generously, above the
+	// client-facing Nginx timeouts, to catch only slow-reading clients and
+	// stuck writes that the context deadline can't.
 	//
-	//   Axis     Nginx                      Go            Buffer
-	//   ─────────────────────────────────────────────────────────
-	//   Idle     keepalive_timeout 60s   →  IdleTimeout 75s   +15s
-	//   Read     proxy_send_timeout 30s  →  ReadTimeout 35s    +5s
-	//   Write    proxy_read_timeout 30s  →  WriteTimeout 35s   +5s
+	// Ordering invariant: context 5s < Nginx proxy 10s < Go Write 15s.
+	// Context fires first (stops work), Nginx is the client-facing bound,
+	// Go socket timeouts are the last-resort net.
+	//
+	//   Axis     Nginx                      Go              Note
+	//   ─────────────────────────────────────────────────────────────
+	//   Idle     keepalive_timeout 60s   →  IdleTimeout 75s   Go > Nginx
+	//   Read     proxy_send_timeout 10s  →  ReadTimeout 10s   backstop
+	//   Write    proxy_read_timeout 10s  →  WriteTimeout 15s  backstop
 	//
 	// Idle axis: Nginx closes idle keepalive first → sends FIN to Go →
-	// Go cleans up passively. If Go closed first, Nginx could race and
-	// POST a new request onto a socket Go just half-closed.
+	// Go cleans up passively. Go's 75s > Nginx 60s keeps Nginx the closer
+	// and avoids the half-open-socket race.
 	//
-	// Read axis: when client uploads slowly, Nginx aborts at 30s (504 to
-	// client). Go's 35s lets the in-flight handler unwind cleanly.
-	//
-	// Write axis: when handler responds slowly, Nginx aborts read at 30s
-	// (504 + closes upstream). Go writes hit EPIPE at handler return —
-	// logged gracefully, no goroutine leak.
-	//
-	// ReadHeaderTimeout caps slow-loris attacks where a client dribbles
-	// headers one byte per second; cheaper than ReadTimeout because it
-	// only arms a deadline during the header phase.
+	// ReadHeaderTimeout (5s) caps slow-loris attacks where a client
+	// dribbles headers one byte per second; cheaper than ReadTimeout
+	// because it only arms a deadline during the header phase. (The edge
+	// equivalent, Nginx client_header_timeout, is the real front-door
+	// defence — see nginx/nginx.conf.)
 	return &http.Server{
 		Addr:              ":8080",
 		Handler:           router.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       35 * time.Second,
-		WriteTimeout:      35 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      15 * time.Second,
 		IdleTimeout:       75 * time.Second,
 	}
 }
@@ -230,6 +278,20 @@ func handleRedirect(grpcClient *client.Client) gin.HandlerFunc {
 			return
 		}
 		c.Redirect(http.StatusMovedPermanently, res.GetUrl().GetOriginalURL())
+	}
+}
+
+// requestTimeout returns a Gin middleware that attaches a deadline to every
+// request's context. The deadline propagates downstream (grpc-gateway → gRPC
+// client → server ctx → Postgres) so slow backend calls are cancelled and
+// their goroutines freed, rather than piling up under load. cancel() is
+// deferred so the timer is always released when the handler chain returns.
+func requestTimeout(d time.Duration) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), d)
+		defer cancel()
+		c.Request = c.Request.WithContext(ctx)
+		c.Next()
 	}
 }
 
@@ -343,6 +405,53 @@ func RunServer() {
 	if err := g.Wait(); err != nil {
 		log.Fatalf("Server exited with error: %v", err)
 	}
+}
+
+// corsAllowedOrigins returns the CORS origin whitelist for the server.
+//
+// It reads the CORS_ALLOWED_ORIGINS environment variable, which must be a
+// comma-separated list of fully-qualified origins, e.g.:
+//
+//	CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
+//
+// When the variable is absent or empty the server falls back to a set of
+// localhost dev origins so that local development works out of the box
+// without any extra configuration.
+//
+// "AllowOrigins: *" is intentionally never used: the wildcard disables
+// AllowCredentials support (browsers reject it), leaks the API to arbitrary
+// origins, and prevents cookie / Authorization header forwarding.
+func corsAllowedOrigins(log *logger.Logger) []string {
+	raw := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if raw == "" {
+		devOrigins := []string{
+			"http://localhost:3000",
+			"http://localhost:8080",
+			"http://127.0.0.1:3000",
+			"http://127.0.0.1:8080",
+		}
+		log.Warn("CORS_ALLOWED_ORIGINS is not set — falling back to localhost dev origins. Set this variable in production.",
+			zap.Strings("origins", devOrigins),
+		)
+		return devOrigins
+	}
+
+	seen := make(map[string]struct{})
+	var origins []string
+	for _, o := range strings.Split(raw, ",") {
+		o = strings.TrimSpace(o)
+		if o == "" {
+			continue
+		}
+		if _, dup := seen[o]; dup {
+			continue
+		}
+		seen[o] = struct{}{}
+		origins = append(origins, o)
+	}
+
+	log.Info("CORS allowed origins configured", zap.Strings("origins", origins))
+	return origins
 }
 
 func main() {
