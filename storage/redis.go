@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ducanng/URLShortener/logger"
-	"github.com/ducanng/URLShortener/model"
+	"github.com/ducanng/URLShortener/internal/logger"
+	"github.com/ducanng/URLShortener/internal/domain"
 
 	base62 "github.com/alextanhongpin/base62"
 	"github.com/joho/godotenv"
@@ -58,7 +58,7 @@ func NewRedis(log *logger.Logger) (*Redis, error) {
 // real expiry. When ExpiresAt is nil ("never expires") TTL = 0 which means
 // "no expiry" in Redis. If ExpiresAt is already in the past we skip the
 // write — caching a known-expired value would only mislead Get callers.
-func (s *Redis) Set(ctx context.Context, entry model.URLEntry) error {
+func (s *Redis) Set(ctx context.Context, entry domain.URLEntry) error {
 	log := s.WithContext(ctx)
 	marshal, err := json.Marshal(entry)
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *Redis) Set(ctx context.Context, entry model.URLEntry) error {
 // Get returns the cached entry for a base62-encoded short key. redis.Nil
 // (cache miss) is returned to the caller without a log line, since the
 // cache-aside pattern treats it as the normal fallback path.
-func (s *Redis) Get(ctx context.Context, key string) (model.URLEntry, error) {
+func (s *Redis) Get(ctx context.Context, key string) (domain.URLEntry, error) {
 	log := s.WithContext(ctx)
 	id := base62.Decode(key)
 	val, err := s.Client.Get(strconv.FormatUint(id, 10)).Result()
@@ -92,9 +92,9 @@ func (s *Redis) Get(ctx context.Context, key string) (model.URLEntry, error) {
 		if err != redis.Nil {
 			log.Warnf("failed to get key-value from redis: %v", err)
 		}
-		return model.URLEntry{}, err
+		return domain.URLEntry{}, err
 	}
-	var entry model.URLEntry
+	var entry domain.URLEntry
 	_ = json.Unmarshal([]byte(val), &entry)
 	return entry, nil
 }
@@ -102,7 +102,7 @@ func (s *Redis) Get(ctx context.Context, key string) (model.URLEntry, error) {
 // Update refreshes a cached entry. Delegates to Set so the TTL policy
 // stays in one place; kept as a distinct method to keep call sites
 // expressive (Set vs Update).
-func (s *Redis) Update(ctx context.Context, entry model.URLEntry) error {
+func (s *Redis) Update(ctx context.Context, entry domain.URLEntry) error {
 	return s.Set(ctx, entry)
 }
 

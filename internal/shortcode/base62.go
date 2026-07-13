@@ -1,4 +1,7 @@
-package shorten
+// Package shortcode encodes/decodes the numeric ID used internally to the
+// user-facing short path. Base62 is chosen for a compact URL-safe alphabet
+// (0-9A-Za-z) with no reserved characters.
+package shortcode
 
 import (
 	base62 "github.com/alextanhongpin/base62"

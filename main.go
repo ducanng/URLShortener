@@ -11,8 +11,8 @@ import (
 
 	"github.com/ducanng/URLShortener/client"
 	_ "github.com/ducanng/URLShortener/docs"
-	"github.com/ducanng/URLShortener/logger"
-	"github.com/ducanng/URLShortener/metrics"
+	"github.com/ducanng/URLShortener/internal/logger"
+	"github.com/ducanng/URLShortener/internal/metrics"
 	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
 	"github.com/ducanng/URLShortener/server"
 	"github.com/ducanng/URLShortener/storage"

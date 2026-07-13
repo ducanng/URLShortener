@@ -1,4 +1,7 @@
-package model
+// Package domain contains the core business entities of the URL shortener.
+// Entities are pure Go types with no dependencies on transport, storage,
+// or third-party frameworks.
+package domain
 
 import "time"
 

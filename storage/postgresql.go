@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/ducanng/URLShortener/logger"
-	"github.com/ducanng/URLShortener/model"
+	"github.com/ducanng/URLShortener/internal/logger"
+	"github.com/ducanng/URLShortener/internal/domain"
 
 	base62 "github.com/alextanhongpin/base62"
 
@@ -23,7 +23,7 @@ import (
 type SQLStore struct {
 	*logger.Logger
 	Client   *sql.DB
-	URLEntry model.URLEntry
+	URLEntry domain.URLEntry
 }
 
 // NewSQLStore opens a *sql.DB to the database referenced by the DB env var
@@ -56,7 +56,7 @@ func NewSQLStore(log *logger.Logger) (*SQLStore, error) {
 // Save inserts a new URLEntry. Uses ExecContext so the query honours the
 // caller's deadline / cancellation. ExpiresAt is a pointer so passing nil
 // stores SQL NULL — meaning the entry never expires.
-func (s *SQLStore) Save(ctx context.Context, entry model.URLEntry) error {
+func (s *SQLStore) Save(ctx context.Context, entry domain.URLEntry) error {
 	log := s.WithContext(ctx)
 	_, err := s.Client.ExecContext(
 		ctx,
@@ -78,10 +78,10 @@ func (s *SQLStore) Save(ctx context.Context, entry model.URLEntry) error {
 // gRPC NotFound. Expiry filtering is intentionally NOT done here; the
 // service layer must distinguish "not found" from "expired" to return
 // different status codes (404 vs 410 / NotFound vs FailedPrecondition).
-func (s *SQLStore) Load(ctx context.Context, key string) (model.URLEntry, error) {
+func (s *SQLStore) Load(ctx context.Context, key string) (domain.URLEntry, error) {
 	log := s.WithContext(ctx)
 	id := int64(base62.Decode(key))
-	var value model.URLEntry
+	var value domain.URLEntry
 	err := s.Client.QueryRowContext(
 		ctx,
 		"SELECT id, original_url, shorted_url, clicks, expires_at FROM url_list WHERE id = $1",

@@ -13,10 +13,10 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/ducanng/URLShortener/logger"
-	"github.com/ducanng/URLShortener/model"
+	"github.com/ducanng/URLShortener/internal/logger"
+	"github.com/ducanng/URLShortener/internal/domain"
 	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
-	"github.com/ducanng/URLShortener/shorten"
+	"github.com/ducanng/URLShortener/internal/shortcode"
 	"github.com/ducanng/URLShortener/storage"
 
 	"google.golang.org/grpc"
@@ -194,7 +194,7 @@ func resolveExpiry(req *urlshortenerpb.CreateURLRequest, now time.Time) (*time.T
 	return &t, nil
 }
 
-// expiresAtPB converts model.URLEntry.ExpiresAt to a protobuf Timestamp.
+// expiresAtPB converts domain.URLEntry.ExpiresAt to a protobuf Timestamp.
 // Returns nil for entries that never expire.
 func expiresAtPB(t *time.Time) *timestamppb.Timestamp {
 	if t == nil {
@@ -220,10 +220,10 @@ func (s *service) CreateURL(ctx context.Context, req *urlshortenerpb.CreateURLRe
 		log.Errorf("getting next ID from Redis: %v", err)
 		return nil, status.Errorf(codes.Unavailable, "ID generation unavailable: %v", err)
 	}
-	url := model.URLEntry{
+	url := domain.URLEntry{
 		Id:          id,
 		OriginalURL: req.GetUrl(),
-		ShortedURL:  shorten.ShortPathFromID(id),
+		ShortedURL:  shortcode.ShortPathFromID(id),
 		Clicks:      0,
 		ExpiresAt:   expiresAt,
 	}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ducanng/URLShortener/logger"
+	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

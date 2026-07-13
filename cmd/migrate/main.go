@@ -17,7 +17,7 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/ducanng/URLShortener/logger"
+	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/storage"
 
 	"github.com/joho/godotenv"
