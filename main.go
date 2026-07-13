@@ -9,15 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ducanng/URLShortener/client"
 	_ "github.com/ducanng/URLShortener/docs"
 	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/metrics"
 	"github.com/ducanng/URLShortener/internal/repository/postgres"
 	"github.com/ducanng/URLShortener/internal/repository/redis"
 	"github.com/ducanng/URLShortener/internal/service/urlservice"
+	grpctransport "github.com/ducanng/URLShortener/internal/transport/grpc"
 	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
-	"github.com/ducanng/URLShortener/server"
 	"github.com/gin-contrib/cors"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
@@ -69,7 +68,7 @@ type ErrorResponse struct {
 // instrumentation, the trace-id middleware, and the redirect handler. The
 // /metrics endpoint is NOT mounted here — it lives on the dedicated metrics
 // server (port 7070) for security and load isolation.
-func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *client.Client, cache *redis.Cache, pgRepo *postgres.Repo) *http.Server {
+func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *grpctransport.Client, cache *redis.Cache, pgRepo *postgres.Repo) *http.Server {
 	// grpc-gateway: REST → gRPC reverse proxy, generated from proto annotations.
 	// runtime.WithMetadata forwards the X-Trace-Id HTTP header into gRPC
 	// metadata so the server-side trace interceptor can pick it up and keep
@@ -260,14 +259,14 @@ func handleGetURL(gwMux *runtime.ServeMux) gin.HandlerFunc {
 // @Failure      404 {object} ErrorResponse
 // @Failure      410 {object} ErrorResponse
 // @Router       /{path} [get]
-func handleRedirect(grpcClient *client.Client) gin.HandlerFunc {
+func handleRedirect(grpcClient *grpctransport.Client) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Param("path")
 		res, err := grpcClient.CC.GetURL(c.Request.Context(), &urlshortenerpb.GetURLRequest{URL: path})
 		if err != nil {
 			// Distinguish expired (410 Gone) from real not-found (404).
 			// FailedPrecondition is the gRPC code chosen for "exists but
-			// expired" — see server.GetURL.
+			// expired" — see the gRPC handler's GetURL.
 			if st, ok := status.FromError(err); ok && st.Code() == codes.FailedPrecondition {
 				c.JSON(http.StatusGone, gin.H{"message": "URL expired"})
 				return
@@ -352,13 +351,13 @@ func RunServer() {
 	svc := urlservice.New(log, pgRepo, cache, counter)
 
 	// gRPC server
-	grpcServer, err := server.NewGRPCServer(log, svc)
+	grpcServer, err := grpctransport.NewServer(log, svc)
 	if err != nil {
 		log.Fatalf("init grpc server: %v", err)
 	}
 
 	// gRPC client (used by HTTP gateway + redirect handler)
-	grpcClient, cleanup, err := client.NewClient("localhost:50051", log)
+	grpcClient, cleanup, err := grpctransport.NewClient("localhost:50051", log)
 	if err != nil {
 		log.Fatalf("init grpc client: %v", err)
 	}
