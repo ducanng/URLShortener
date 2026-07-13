@@ -9,13 +9,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	base62 "github.com/alextanhongpin/base62"
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 
+	"github.com/ducanng/URLShortener/internal/config"
 	"github.com/ducanng/URLShortener/internal/domain"
 	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/repository"
@@ -33,19 +32,14 @@ type Repo struct {
 	Client *sql.DB
 }
 
-// New opens a *sql.DB against the database referenced by the DB env var,
-// sizes the connection pool for an 8-vCPU SSD host, and returns the
-// wrapper. Schema is NOT created here — run `make migrate-up` before
-// starting the app for the first time.
+// New opens a *sql.DB against cfg.DSN, sizes the connection pool for an
+// 8-vCPU SSD host, and returns the wrapper. Schema is NOT created here — run
+// `make migrate-up` before starting the app for the first time.
 //
 // Connection pool: (CPU×2)+spindle = 17 for an 8-vCPU SSD machine. Tune
 // SetMaxOpenConns/SetMaxIdleConns when running on smaller / larger hosts.
-func New(log *logger.Logger) (*Repo, error) {
-	if err := godotenv.Load(); err != nil {
-		log.Warnf(".env not found, using environment variables: %v", err)
-	}
-
-	client, err := sql.Open("postgres", os.Getenv("DB"))
+func New(cfg config.DBConfig, log *logger.Logger) (*Repo, error) {
+	client, err := sql.Open("postgres", cfg.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("sql open: %w", err)
 	}

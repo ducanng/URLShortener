@@ -2,10 +2,9 @@ package http
 
 import (
 	"context"
-	"os"
-	"strings"
 	"time"
 
+	"github.com/ducanng/URLShortener/internal/config"
 	"github.com/ducanng/URLShortener/internal/logger"
 
 	"github.com/gin-contrib/cors"
@@ -48,14 +47,14 @@ func prometheusMiddleware() gin.HandlerFunc {
 
 // corsMiddleware builds the production-hardened CORS middleware.
 //
-// Origins are read from CORS_ALLOWED_ORIGINS (comma-separated list). When the
-// env var is absent the server falls back to localhost dev origins so local
+// Origins come pre-resolved from config (CORS_ALLOWED_ORIGINS). When the list
+// is empty the server falls back to localhost dev origins so local
 // development keeps working without extra config. Never use "*" in
 // production: it disables credentials and prevents cookie / Authorization
 // header forwarding on cross-origin requests.
-func corsMiddleware(log *logger.Logger) gin.HandlerFunc {
+func corsMiddleware(cfg config.CORSConfig, log *logger.Logger) gin.HandlerFunc {
 	return cors.New(cors.Config{
-		AllowOrigins: corsAllowedOrigins(log),
+		AllowOrigins: corsAllowedOrigins(cfg, log),
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"},
 		AllowHeaders: []string{
 			"Origin",
@@ -80,21 +79,17 @@ func corsMiddleware(log *logger.Logger) gin.HandlerFunc {
 
 // corsAllowedOrigins returns the CORS origin whitelist for the server.
 //
-// It reads the CORS_ALLOWED_ORIGINS environment variable, which must be a
-// comma-separated list of fully-qualified origins, e.g.:
-//
-//	CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com
-//
-// When the variable is absent or empty the server falls back to a set of
-// localhost dev origins so that local development works out of the box
-// without any extra configuration.
+// Origins are resolved by config from the CORS_ALLOWED_ORIGINS environment
+// variable (comma-separated, e.g.
+// CORS_ALLOWED_ORIGINS=https://app.example.com,https://admin.example.com).
+// When that list is empty the server falls back to a set of localhost dev
+// origins so that local development works out of the box.
 //
 // "AllowOrigins: *" is intentionally never used: the wildcard disables
 // AllowCredentials support (browsers reject it), leaks the API to arbitrary
 // origins, and prevents cookie / Authorization header forwarding.
-func corsAllowedOrigins(log *logger.Logger) []string {
-	raw := os.Getenv("CORS_ALLOWED_ORIGINS")
-	if raw == "" {
+func corsAllowedOrigins(cfg config.CORSConfig, log *logger.Logger) []string {
+	if len(cfg.AllowedOrigins) == 0 {
 		devOrigins := []string{
 			"http://localhost:3000",
 			"http://localhost:8080",
@@ -107,20 +102,6 @@ func corsAllowedOrigins(log *logger.Logger) []string {
 		return devOrigins
 	}
 
-	seen := make(map[string]struct{})
-	var origins []string
-	for _, o := range strings.Split(raw, ",") {
-		o = strings.TrimSpace(o)
-		if o == "" {
-			continue
-		}
-		if _, dup := seen[o]; dup {
-			continue
-		}
-		seen[o] = struct{}{}
-		origins = append(origins, o)
-	}
-
-	log.Info("CORS allowed origins configured", zap.Strings("origins", origins))
-	return origins
+	log.Info("CORS allowed origins configured", zap.Strings("origins", cfg.AllowedOrigins))
+	return cfg.AllowedOrigins
 }

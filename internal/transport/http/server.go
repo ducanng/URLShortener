@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ducanng/URLShortener/internal/config"
 	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/repository/postgres"
 	"github.com/ducanng/URLShortener/internal/repository/redis"
@@ -20,16 +21,12 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-// grpcEndpoint is the loopback address of the local gRPC server that the REST
-// gateway proxies to.
-const grpcEndpoint = "localhost:50051"
-
 // NewServer sets up the Gin router with grpc-gateway, Swagger, Prometheus
 // instrumentation, the trace-id middleware, health probes, and the redirect
 // handler, and wraps it in an *http.Server with production timeouts. The
 // /metrics endpoint is NOT mounted here — it lives on the dedicated metrics
 // server (port 7070) for security and load isolation.
-func NewServer(ctx context.Context, log *logger.Logger, grpcClient *grpctransport.Client, cache *redis.Cache, pgRepo *postgres.Repo) *http.Server {
+func NewServer(ctx context.Context, cfg config.HTTPConfig, corsCfg config.CORSConfig, grpcClient *grpctransport.Client, cache *redis.Cache, pgRepo *postgres.Repo, log *logger.Logger) *http.Server {
 	// grpc-gateway: REST → gRPC reverse proxy, generated from proto annotations.
 	// runtime.WithMetadata forwards the X-Trace-Id HTTP header into gRPC
 	// metadata so the server-side trace interceptor can pick it up and keep
@@ -44,7 +41,7 @@ func NewServer(ctx context.Context, log *logger.Logger, grpcClient *grpctranspor
 	)
 	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	if err := urlshortenerpb.RegisterURLShortenerServiceHandlerFromEndpoint(
-		ctx, gwMux, grpcEndpoint, dialOpts,
+		ctx, gwMux, cfg.GRPCEndpoint, dialOpts,
 	); err != nil {
 		log.Fatalf("Failed to register grpc-gateway: %v", err)
 	}
@@ -63,7 +60,7 @@ func NewServer(ctx context.Context, log *logger.Logger, grpcClient *grpctranspor
 	router.Use(prometheusMiddleware())
 
 	// CORS middleware — production-hardened, origins from CORS_ALLOWED_ORIGINS.
-	router.Use(corsMiddleware(log))
+	router.Use(corsMiddleware(corsCfg, log))
 
 	// Per-request deadline — the PRIMARY work-cancellation mechanism. It
 	// propagates through grpc-gateway / the gRPC client (as a grpc-timeout
@@ -116,7 +113,7 @@ func NewServer(ctx context.Context, log *logger.Logger, grpcClient *grpctranspor
 	// equivalent, Nginx client_header_timeout, is the real front-door
 	// defence — see nginx/nginx.conf.)
 	return &http.Server{
-		Addr:              ":8080",
+		Addr:              cfg.Addr,
 		Handler:           router.Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,

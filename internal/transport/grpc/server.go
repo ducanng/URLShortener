@@ -21,24 +21,23 @@ import (
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 )
 
-const grpcAddr = ":50051"
-
 // Server wraps the gRPC server lifecycle (listen, serve, shutdown) and holds
 // the process logger for startup/shutdown messages.
 type Server struct {
 	*logger.Logger
-	srv *grpc.Server
-	lis net.Listener
+	srv  *grpc.Server
+	lis  net.Listener
+	addr string
 }
 
-// NewServer binds :50051, wires interceptors (trace → logging → recovery),
-// registers the URL service and the standard gRPC health service. The
-// listener bind is the only failure point so the only returned error is from
-// net.Listen.
-func NewServer(log *logger.Logger, svc *urlservice.URLService) (*Server, error) {
-	lis, err := net.Listen("tcp", grpcAddr)
+// NewServer binds addr (e.g. ":50051"), wires interceptors (trace → logging →
+// recovery), registers the URL service and the standard gRPC health service.
+// The listener bind is the only failure point so the only returned error is
+// from net.Listen.
+func NewServer(addr string, svc *urlservice.URLService, log *logger.Logger) (*Server, error) {
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
-		return nil, fmt.Errorf("listen %s: %w", grpcAddr, err)
+		return nil, fmt.Errorf("listen %s: %w", addr, err)
 	}
 
 	// Order matters: trace must run first so logging/recovery can read
@@ -60,12 +59,12 @@ func NewServer(log *logger.Logger, svc *urlservice.URLService) (*Server, error) 
 	healthpb.RegisterHealthServer(srv, healthSrv)
 	healthSrv.SetServingStatus("urlshortener.URLShortenerService", healthpb.HealthCheckResponse_SERVING)
 
-	return &Server{Logger: log, srv: srv, lis: lis}, nil
+	return &Server{Logger: log, srv: srv, lis: lis, addr: addr}, nil
 }
 
 // ListenAndServe blocks until the gRPC server stops.
 func (s *Server) ListenAndServe() error {
-	s.Infof("gRPC server starting on %s", grpcAddr)
+	s.Infof("gRPC server starting on %s", s.addr)
 	return s.srv.Serve(s.lis)
 }
 

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "github.com/ducanng/URLShortener/docs"
+	"github.com/ducanng/URLShortener/internal/config"
 	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/metrics"
 	"github.com/ducanng/URLShortener/internal/repository/postgres"
@@ -29,6 +30,10 @@ import (
 // @host localhost:8080
 // @securityDefinitions.basic  BasicAuth
 func RunServer() {
+	// Resolve all configuration up front — this is the single place the
+	// process touches the environment (.env + os.Getenv live in config.Load).
+	cfg := config.Load()
+
 	// Initialise the structured logger first; everything else depends on it
 	// for error reporting. Failure here is fatal — no point continuing
 	// without observability.
@@ -47,15 +52,15 @@ func RunServer() {
 	defer stop()
 
 	// Storage. Constructors return errors so main owns the fatal decision.
-	cache, err := redis.NewCache(log)
+	cache, err := redis.NewCache(cfg.Redis, log)
 	if err != nil {
 		log.Fatalf("init redis cache: %v", err)
 	}
-	counter, err := redis.NewCounter(log)
+	counter, err := redis.NewCounter(cfg.Redis, log)
 	if err != nil {
 		log.Fatalf("init redis counter: %v", err)
 	}
-	pgRepo, err := postgres.New(log)
+	pgRepo, err := postgres.New(cfg.DB, log)
 	if err != nil {
 		log.Fatalf("init postgres: %v", err)
 	}
@@ -76,20 +81,20 @@ func RunServer() {
 	svc := urlservice.New(log, pgRepo, cache, counter)
 
 	// gRPC server
-	grpcServer, err := grpctransport.NewServer(log, svc)
+	grpcServer, err := grpctransport.NewServer(cfg.GRPCAddr, svc, log)
 	if err != nil {
 		log.Fatalf("init grpc server: %v", err)
 	}
 
 	// gRPC client (used by HTTP gateway + redirect handler)
-	grpcClient, cleanup, err := grpctransport.NewClient("localhost:50051", log)
+	grpcClient, cleanup, err := grpctransport.NewClient(cfg.HTTP.GRPCEndpoint, log)
 	if err != nil {
 		log.Fatalf("init grpc client: %v", err)
 	}
 	defer cleanup()
 
 	// HTTP server (Gin + grpc-gateway + Swagger + Prometheus middleware + trace_id)
-	httpSrv := httptransport.NewServer(ctx, log, grpcClient, cache, pgRepo)
+	httpSrv := httptransport.NewServer(ctx, cfg.HTTP, cfg.CORS, grpcClient, cache, pgRepo, log)
 
 	// Dedicated metrics server on :7070 — isolated from public :8080.
 	metricsSrv := metrics.NewServer(metrics.DefaultAddr)

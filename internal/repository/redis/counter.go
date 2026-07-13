@@ -3,11 +3,10 @@ package redis
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"github.com/go-redis/redis"
-	"github.com/joho/godotenv"
 
+	"github.com/ducanng/URLShortener/internal/config"
 	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/repository"
 )
@@ -25,15 +24,12 @@ type Counter struct {
 	Client *redis.Client
 }
 
-// NewCounter dials Redis using REDIS_ADDR and returns a ready-to-use
-// counter. The connection is independent from the Cache client so the two
-// can be sharded onto different Redis nodes when scale requires it.
-func NewCounter(log *logger.Logger) (*Counter, error) {
-	if err := godotenv.Load(); err != nil {
-		log.Warnf(".env not found, using environment variables: %v", err)
-	}
+// NewCounter dials Redis using cfg.Addr and returns a ready-to-use counter.
+// The connection is independent from the Cache client so the two can be
+// sharded onto different Redis nodes when scale requires it.
+func NewCounter(cfg config.RedisConfig, log *logger.Logger) (*Counter, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_ADDR"),
+		Addr:     cfg.Addr,
 		Password: "",
 		DB:       0,
 	})

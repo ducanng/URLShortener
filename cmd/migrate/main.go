@@ -17,10 +17,10 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/ducanng/URLShortener/internal/config"
 	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/repository/postgres"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 	"go.uber.org/zap/zapcore"
 )
@@ -38,16 +38,12 @@ func main() {
 	}
 	defer log.Sync()
 
-	if err := godotenv.Load(); err != nil {
-		log.Warnf(".env not found, using environment variables: %v", err)
-	}
-
-	dsn := os.Getenv("DB")
-	if dsn == "" {
+	cfg := config.Load()
+	if cfg.DB.DSN == "" {
 		log.Fatal("DB env var is required")
 	}
 
-	db, err := sql.Open("postgres", dsn)
+	db, err := sql.Open("postgres", cfg.DB.DSN)
 	if err != nil {
 		log.Fatalf("sql open: %v", err)
 	}

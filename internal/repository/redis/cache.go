@@ -9,14 +9,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
 	base62 "github.com/alextanhongpin/base62"
 	"github.com/go-redis/redis"
-	"github.com/joho/godotenv"
 
+	"github.com/ducanng/URLShortener/internal/config"
 	"github.com/ducanng/URLShortener/internal/domain"
 	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/repository"
@@ -35,15 +34,11 @@ type Cache struct {
 	Client *redis.Client
 }
 
-// NewCache dials Redis using REDIS_ADDR, verifies connectivity with PING,
-// and returns a ready-to-use cache. Loading .env is best-effort: missing
-// file is fine when env vars are already set (e.g. inside Docker).
-func NewCache(log *logger.Logger) (*Cache, error) {
-	if err := godotenv.Load(); err != nil {
-		log.Warnf(".env not found, using environment variables: %v", err)
-	}
+// NewCache dials Redis using cfg.Addr, verifies connectivity with PING, and
+// returns a ready-to-use cache.
+func NewCache(cfg config.RedisConfig, log *logger.Logger) (*Cache, error) {
 	client := redis.NewClient(&redis.Options{
-		Addr:     os.Getenv("REDIS_ADDR"),
+		Addr:     cfg.Addr,
 		Password: "",
 		DB:       0,
 	})
