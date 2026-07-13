@@ -1,12 +1,12 @@
 // Package server implements the gRPC URLShortenerService and the lifecycle
-// (Listen, Serve, GracefulStop) of the gRPC server. The package depends on
-// storage and logger; nothing here calls os.Exit / log.Fatal — failures are
-// returned to main.
+// (Listen, Serve, GracefulStop) of the gRPC server. It is a thin transport
+// adapter: proto types are decoded into domain params, the service layer
+// does the work, and domain results are re-encoded into proto responses.
+// Nothing here calls os.Exit / log.Fatal — failures are returned to main.
 package server
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"net"
@@ -15,10 +15,8 @@ import (
 
 	"github.com/ducanng/URLShortener/internal/domain"
 	"github.com/ducanng/URLShortener/internal/logger"
-	"github.com/ducanng/URLShortener/internal/shortcode"
+	"github.com/ducanng/URLShortener/internal/service/urlservice"
 	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
-	"github.com/ducanng/URLShortener/internal/repository/postgres"
-	"github.com/ducanng/URLShortener/internal/repository/redis"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -30,27 +28,24 @@ import (
 )
 
 const (
-	grpcAddr   = ":50051"
+	grpcAddr = ":50051"
+
+	// prefixLink is the base URL prepended to the generated short path
+	// when building the response ShortenedURL field.
 	prefixLink = "http://localhost:8080/"
 
 	// traceMetadataKey is the gRPC metadata key used to propagate the
 	// HTTP X-Trace-Id header across the grpc-gateway → gRPC boundary.
 	// gRPC normalises metadata keys to lower-case.
 	traceMetadataKey = "x-trace-id"
-
-	// defaultURLTTL is applied when CreateURL receives neither expires_at
-	// nor no_expire. Tunable later via env var without changing call sites.
-	defaultURLTTL = 30 * 24 * time.Hour
 )
 
-// service implements the gRPC URLShortenerService handlers. The embedded
-// *Logger gives every handler structured logging without an extra field.
+// service is the thin gRPC adapter. It converts proto ↔ domain types and
+// delegates all business decisions to the injected URLService.
 type service struct {
 	*logger.Logger
 	urlshortenerpb.URLShortenerServiceServer
-	Cache   *redis.Cache
-	Counter *redis.Counter
-	DB      *postgres.Repo
+	svc *urlservice.URLService
 }
 
 // GRPCServer wraps the gRPC server lifecycle (listen, serve, shutdown) and
@@ -65,7 +60,7 @@ type GRPCServer struct {
 // recovery), registers the URL service and the standard gRPC health
 // service. The listener bind is the only failure point so the only
 // returned error is from net.Listen.
-func NewGRPCServer(log *logger.Logger, cache *redis.Cache, counter *redis.Counter, db *postgres.Repo) (*GRPCServer, error) {
+func NewGRPCServer(log *logger.Logger, svc *urlservice.URLService) (*GRPCServer, error) {
 	lis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		return nil, fmt.Errorf("listen %s: %w", grpcAddr, err)
@@ -82,10 +77,8 @@ func NewGRPCServer(log *logger.Logger, cache *redis.Cache, counter *redis.Counte
 	)
 
 	urlshortenerpb.RegisterURLShortenerServiceServer(srv, &service{
-		Logger:  log,
-		Cache:   cache,
-		Counter: counter,
-		DB:      db,
+		Logger: log,
+		svc:    svc,
 	})
 
 	healthSrv := health.NewServer()
@@ -95,16 +88,14 @@ func NewGRPCServer(log *logger.Logger, cache *redis.Cache, counter *redis.Counte
 	return &GRPCServer{Logger: log, srv: srv, lis: lis}, nil
 }
 
-// ListenAndServe blocks until the gRPC server stops. Returns the error from
-// grpc.Server.Serve, or nil on graceful shutdown.
+// ListenAndServe blocks until the gRPC server stops.
 func (s *GRPCServer) ListenAndServe() error {
 	s.Infof("gRPC server starting on %s", grpcAddr)
 	return s.srv.Serve(s.lis)
 }
 
 // Shutdown gracefully stops the gRPC server, falling back to a forced Stop
-// if GracefulStop has not finished by the time ctx is cancelled. Drains
-// in-flight RPCs without losing requests under normal load.
+// if GracefulStop has not finished by the time ctx is cancelled.
 func (s *GRPCServer) Shutdown(ctx context.Context) {
 	stopped := make(chan struct{})
 	go func() {
@@ -120,10 +111,10 @@ func (s *GRPCServer) Shutdown(ctx context.Context) {
 	}
 }
 
+// ── interceptors ─────────────────────────────────────────────────────────────
+
 // traceInterceptor reads x-trace-id from incoming metadata (forwarded by
-// grpc-gateway from the HTTP X-Trace-Id header) and stores it in ctx. When
-// no metadata is present (direct gRPC client without trace), it generates a
-// fresh UUID so every RPC has a trace_id.
+// grpc-gateway from the HTTP X-Trace-Id header) and stores it in ctx.
 func traceInterceptor() grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		traceID := ""
@@ -140,9 +131,8 @@ func traceInterceptor() grpc.UnaryServerInterceptor {
 	}
 }
 
-// loggingInterceptor emits one structured log line per unary RPC with the
-// method, latency, and gRPC status code. The trace_id from ctx is included
-// automatically via WithContext.
+// loggingInterceptor emits one structured log line per unary RPC with
+// method, latency, and gRPC status code.
 func loggingInterceptor(log *logger.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (any, error) {
 		start := time.Now()
@@ -157,8 +147,7 @@ func loggingInterceptor(log *logger.Logger) grpc.UnaryServerInterceptor {
 }
 
 // recoveryInterceptor catches panics in handlers, logs them with stack
-// trace + trace_id, and returns codes.Internal so the client receives a
-// well-formed gRPC error instead of a connection drop.
+// trace + trace_id, and returns codes.Internal.
 func recoveryInterceptor(log *logger.Logger) grpc.UnaryServerInterceptor {
 	return func(ctx context.Context, req any, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler) (resp any, err error) {
 		defer func() {
@@ -171,120 +160,83 @@ func recoveryInterceptor(log *logger.Logger) grpc.UnaryServerInterceptor {
 	}
 }
 
-// resolveExpiry derives the effective expiry time from the request.
-// Returns nil for "never expires". The four cases are:
-//
-//	(no_expire=true, expires_at=nil)   → nil  (vĩnh viễn)
-//	(no_expire=false, expires_at=nil)  → now + defaultURLTTL
-//	(no_expire=false, expires_at=t)    → t (must be in the future)
-//	(no_expire=true, expires_at=t)     → InvalidArgument (mâu thuẫn)
-func resolveExpiry(req *urlshortenerpb.CreateURLRequest, now time.Time) (*time.Time, error) {
-	hasExplicit := req.GetExpiresAt() != nil
-	if req.GetNoExpire() && hasExplicit {
-		return nil, status.Error(codes.InvalidArgument, "no_expire and expires_at are mutually exclusive")
-	}
-	if req.GetNoExpire() {
-		return nil, nil
-	}
-	if hasExplicit {
-		t := req.GetExpiresAt().AsTime()
-		if !t.After(now) {
-			return nil, status.Error(codes.InvalidArgument, "expires_at must be in the future")
-		}
-		return &t, nil
-	}
-	t := now.Add(defaultURLTTL)
-	return &t, nil
-}
+// ── RPC handlers ─────────────────────────────────────────────────────────────
 
-// expiresAtPB converts domain.URLEntry.ExpiresAt to a protobuf Timestamp.
-// Returns nil for entries that never expire.
-func expiresAtPB(t *time.Time) *timestamppb.Timestamp {
-	if t == nil {
-		return nil
-	}
-	return timestamppb.New(*t)
-}
-
-// CreateURL implements the gRPC RPC — generates an ID, persists the entry,
-// and best-effort caches it.
+// CreateURL decodes the proto request → domain params, delegates to
+// URLService, then encodes the domain result → proto response.
 //
 //goland:noinspection GoUnreachableCode
 func (s *service) CreateURL(ctx context.Context, req *urlshortenerpb.CreateURLRequest) (*urlshortenerpb.Response, error) {
 	log := s.WithContext(ctx)
 
-	expiresAt, err := resolveExpiry(req, time.Now())
-	if err != nil {
-		return nil, err
+	var explicit *time.Time
+	if req.GetExpiresAt() != nil {
+		t := req.GetExpiresAt().AsTime()
+		explicit = &t
 	}
 
-	id, err := s.Counter.NextID(ctx)
+	entry, err := s.svc.CreateURL(ctx, urlservice.CreateParams{
+		OriginalURL:    req.GetUrl(),
+		NoExpire:       req.GetNoExpire(),
+		ExplicitExpiry: explicit,
+	}, time.Now())
 	if err != nil {
-		log.Errorf("getting next ID from Redis: %v", err)
-		return nil, status.Errorf(codes.Unavailable, "ID generation unavailable: %v", err)
+		if errors.Is(err, urlservice.ErrNoExpireConflict) || errors.Is(err, urlservice.ErrExpiresAtPast) {
+			return nil, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+		log.Errorf("create URL: %v", err)
+		return nil, status.Errorf(codes.Internal, "failed to create URL: %v", err)
 	}
-	url := domain.URLEntry{
-		Id:          id,
-		OriginalURL: req.GetUrl(),
-		ShortedURL:  shortcode.ShortPathFromID(id),
-		Clicks:      0,
-		ExpiresAt:   expiresAt,
-	}
-	if err := s.DB.Save(ctx, url); err != nil {
-		log.Errorf("saving to db: %v", err)
-		return nil, status.Errorf(codes.Internal, "failed to save URL: %v", err)
-	}
-	if err := s.Cache.Set(ctx, url); err != nil {
-		log.Warnf("failed to cache in redis, continuing: %v", err)
-	}
+
 	return &urlshortenerpb.Response{
 		Message: "Create short url",
 		Status:  "Success",
 		Url: &urlshortenerpb.ShortenedURL{
-			OriginalURL:  url.OriginalURL,
-			ShortenedURL: prefixLink + url.ShortedURL,
-			Clicks:       url.Clicks,
-			ExpiresAt:    expiresAtPB(url.ExpiresAt),
+			OriginalURL:  entry.OriginalURL,
+			ShortenedURL: prefixLink + entry.ShortedURL,
+			Clicks:       entry.Clicks,
+			ExpiresAt:    expiresAtPB(entry.ExpiresAt),
 		},
 	}, nil
 }
 
-// GetURL implements the gRPC RPC — cache-aside: try Redis first, fall back
-// to PostgreSQL on miss, repopulate cache best-effort. Returns
-// FailedPrecondition when the URL has expired so the HTTP layer can map
-// it to 410 Gone (distinct from a real NotFound).
+// GetURL decodes the proto request, delegates to URLService (cache-aside
+// + expiry check), then encodes the result.
 //
 //goland:noinspection ALL
 func (s *service) GetURL(ctx context.Context, req *urlshortenerpb.GetURLRequest) (*urlshortenerpb.Response, error) {
 	log := s.WithContext(ctx)
 
-	url, err := s.Cache.Get(ctx, req.GetURL())
+	entry, err := s.svc.GetURL(ctx, req.GetURL())
 	if err != nil {
-		url, err = s.DB.Load(ctx, req.GetURL())
-		if err != nil {
-			log.Errorf("loading from db: %v", err)
-			if errors.Is(err, sql.ErrNoRows) {
-				return nil, status.Errorf(codes.NotFound, "URL %q not found", req.GetURL())
-			}
-			return nil, status.Errorf(codes.Internal, "failed to load URL: %v", err)
+		switch {
+		case errors.Is(err, domain.ErrNotFound):
+			return nil, status.Errorf(codes.NotFound, "URL %q not found", req.GetURL())
+		case errors.Is(err, domain.ErrExpired):
+			return nil, status.Errorf(codes.FailedPrecondition, "URL %q has expired", req.GetURL())
+		default:
+			log.Errorf("get URL: %v", err)
+			return nil, status.Errorf(codes.Internal, "failed to get URL: %v", err)
 		}
-		if cacheErr := s.Cache.Set(ctx, url); cacheErr != nil {
-			log.Warnf("failed to re-cache in redis: %v", cacheErr)
-		}
-	}
-
-	if url.ExpiresAt != nil && !time.Now().Before(*url.ExpiresAt) {
-		return nil, status.Errorf(codes.FailedPrecondition, "URL %q has expired", req.GetURL())
 	}
 
 	return &urlshortenerpb.Response{
 		Message: "Get short url",
 		Status:  "Success",
 		Url: &urlshortenerpb.ShortenedURL{
-			OriginalURL:  url.OriginalURL,
-			ShortenedURL: url.ShortedURL,
-			Clicks:       url.Clicks,
-			ExpiresAt:    expiresAtPB(url.ExpiresAt),
+			OriginalURL:  entry.OriginalURL,
+			ShortenedURL: entry.ShortedURL,
+			Clicks:       entry.Clicks,
+			ExpiresAt:    expiresAtPB(entry.ExpiresAt),
 		},
 	}, nil
+}
+
+// expiresAtPB converts a *time.Time to a proto Timestamp.
+// Returns nil for entries that never expire (nil input).
+func expiresAtPB(t *time.Time) *timestamppb.Timestamp {
+	if t == nil {
+		return nil
+	}
+	return timestamppb.New(*t)
 }

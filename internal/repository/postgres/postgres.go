@@ -7,6 +7,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -92,6 +93,9 @@ func (r *Repo) Load(ctx context.Context, key string) (domain.URLEntry, error) {
 		id,
 	).Scan(&value.Id, &value.OriginalURL, &value.ShortedURL, &value.Clicks, &value.ExpiresAt)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return domain.URLEntry{}, fmt.Errorf("%w", domain.ErrNotFound)
+		}
 		log.Errorf("loading from db: %v", err)
 	}
 	return value, err

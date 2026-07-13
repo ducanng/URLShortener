@@ -15,6 +15,7 @@ import (
 	"github.com/ducanng/URLShortener/internal/metrics"
 	"github.com/ducanng/URLShortener/internal/repository/postgres"
 	"github.com/ducanng/URLShortener/internal/repository/redis"
+	"github.com/ducanng/URLShortener/internal/service/urlservice"
 	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
 	"github.com/ducanng/URLShortener/server"
 	"github.com/gin-contrib/cors"
@@ -346,8 +347,12 @@ func RunServer() {
 		log.Fatalf("init Redis counter: %v", err)
 	}
 
+	// Service layer — business logic is isolated here; transport adapters
+	// (gRPC, HTTP) call into it via the URLService methods.
+	svc := urlservice.New(log, pgRepo, cache, counter)
+
 	// gRPC server
-	grpcServer, err := server.NewGRPCServer(log, cache, counter, pgRepo)
+	grpcServer, err := server.NewGRPCServer(log, svc)
 	if err != nil {
 		log.Fatalf("init grpc server: %v", err)
 	}
