@@ -13,9 +13,10 @@ import (
 	_ "github.com/ducanng/URLShortener/docs"
 	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/metrics"
+	"github.com/ducanng/URLShortener/internal/repository/postgres"
+	"github.com/ducanng/URLShortener/internal/repository/redis"
 	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
 	"github.com/ducanng/URLShortener/server"
-	"github.com/ducanng/URLShortener/storage"
 	"github.com/gin-contrib/cors"
 	"github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
@@ -67,7 +68,7 @@ type ErrorResponse struct {
 // instrumentation, the trace-id middleware, and the redirect handler. The
 // /metrics endpoint is NOT mounted here — it lives on the dedicated metrics
 // server (port 7070) for security and load isolation.
-func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *client.Client, redisStore *storage.Redis, sqlStore *storage.SQLStore) *http.Server {
+func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *client.Client, cache *redis.Cache, pgRepo *postgres.Repo) *http.Server {
 	// grpc-gateway: REST → gRPC reverse proxy, generated from proto annotations.
 	// runtime.WithMetadata forwards the X-Trace-Id HTTP header into gRPC
 	// metadata so the server-side trace interceptor can pick it up and keep
@@ -101,11 +102,11 @@ func newHTTPServer(ctx context.Context, log *logger.Logger, grpcClient *client.C
 	router.GET("/readyz", func(c *gin.Context) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
 		defer cancel()
-		if err := sqlStore.Client.PingContext(ctx); err != nil {
+		if err := pgRepo.Client.PingContext(ctx); err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "component": "postgres", "error": err.Error()})
 			return
 		}
-		if _, err := redisStore.Client.Ping().Result(); err != nil {
+		if _, err := cache.Client.Ping().Result(); err != nil {
 			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "not ready", "component": "redis", "error": err.Error()})
 			return
 		}
@@ -321,28 +322,32 @@ func RunServer() {
 	defer stop()
 
 	// Storage. Constructors return errors so main owns the fatal decision.
-	redisStore, err := storage.NewRedis(log)
+	cache, err := redis.NewCache(log)
 	if err != nil {
-		log.Fatalf("init redis: %v", err)
+		log.Fatalf("init redis cache: %v", err)
 	}
-	sqlStore, err := storage.NewSQLStore(log)
+	counter, err := redis.NewCounter(log)
 	if err != nil {
-		log.Fatalf("init sql: %v", err)
+		log.Fatalf("init redis counter: %v", err)
+	}
+	pgRepo, err := postgres.New(log)
+	if err != nil {
+		log.Fatalf("init postgres: %v", err)
 	}
 
 	// Seed the Redis global counter from PG MAX(id) — uses SET NX so it is a
 	// no-op when the counter already exists (normal restart). Fail fast when
 	// Redis is unreachable because ID generation depends on it.
-	maxID, err := sqlStore.MaxID(ctx)
+	maxID, err := pgRepo.MaxID(ctx)
 	if err != nil {
 		log.Fatalf("read MAX(id) from DB: %v", err)
 	}
-	if err := redisStore.InitCounter(ctx, maxID+1); err != nil {
+	if err := counter.InitCounter(ctx, maxID+1); err != nil {
 		log.Fatalf("init Redis counter: %v", err)
 	}
 
 	// gRPC server
-	grpcServer, err := server.NewGRPCServer(log, redisStore, sqlStore)
+	grpcServer, err := server.NewGRPCServer(log, cache, counter, pgRepo)
 	if err != nil {
 		log.Fatalf("init grpc server: %v", err)
 	}
@@ -355,7 +360,7 @@ func RunServer() {
 	defer cleanup()
 
 	// HTTP server (Gin + grpc-gateway + Swagger + Prometheus middleware + trace_id)
-	httpSrv := newHTTPServer(ctx, log, grpcClient, redisStore, sqlStore)
+	httpSrv := newHTTPServer(ctx, log, grpcClient, cache, pgRepo)
 
 	// Dedicated metrics server on :7070 — isolated from public :8080.
 	metricsSrv := metrics.NewServer(metrics.DefaultAddr)

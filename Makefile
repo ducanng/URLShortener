@@ -26,7 +26,7 @@ monitoring-up: network
 monitoring-down:
 	docker compose -f docker-compose.monitoring.yml down
 
-# ---- Database migrations (golang-migrate, embedded in storage/migrations) ----
+# ---- Database migrations (golang-migrate, embedded in internal/repository/postgres/migrations) ----
 # Run manually before/after schema changes. The app does NOT auto-migrate.
 
 migrate-up:
@@ -46,9 +46,9 @@ migrate-force:
 # Usage: make migrate-create NAME=add_users_table
 # -seq  : sequential numbering (000002, 000003, ...) instead of timestamp
 # -ext  : file extension for the generated up/down files
-# -dir  : output directory (must match the embed path in storage/migrate.go)
+# -dir  : output directory (must match the embed path in internal/repository/postgres/migrate.go)
 migrate-create:
 	@if [ -z "$(NAME)" ]; then echo "usage: make migrate-create NAME=<name>"; exit 1; fi
-	@mkdir -p storage/migrations
+	@mkdir -p internal/repository/postgres/migrations
 	go run github.com/golang-migrate/migrate/v4/cmd/migrate create \
-		-ext sql -dir storage/migrations -seq $(NAME)
+		-ext sql -dir internal/repository/postgres/migrations -seq $(NAME)

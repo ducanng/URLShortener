@@ -18,7 +18,7 @@ import (
 	"strconv"
 
 	"github.com/ducanng/URLShortener/internal/logger"
-	"github.com/ducanng/URLShortener/storage"
+	"github.com/ducanng/URLShortener/internal/repository/postgres"
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -55,7 +55,7 @@ func main() {
 
 	switch os.Args[1] {
 	case "up":
-		if err := storage.MigrateUp(db, log); err != nil {
+		if err := postgres.MigrateUp(db, log); err != nil {
 			log.Fatalf("migrate up: %v", err)
 		}
 	case "down":
@@ -67,12 +67,12 @@ func main() {
 			}
 			steps = n
 		}
-		if err := storage.MigrateDown(db, steps); err != nil {
+		if err := postgres.MigrateDown(db, steps); err != nil {
 			log.Fatalf("migrate down: %v", err)
 		}
 		log.Infof("migrate down %d step(s) ok", steps)
 	case "version":
-		v, dirty, err := storage.MigrateVersion(db)
+		v, dirty, err := postgres.MigrateVersion(db)
 		if err != nil {
 			log.Fatalf("migrate version: %v", err)
 		}
@@ -85,7 +85,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("invalid version %q: %v", os.Args[2], err)
 		}
-		if err := storage.MigrateForce(db, v); err != nil {
+		if err := postgres.MigrateForce(db, v); err != nil {
 			log.Fatalf("migrate force: %v", err)
 		}
 		log.Infof("migrate forced to version %d", v)

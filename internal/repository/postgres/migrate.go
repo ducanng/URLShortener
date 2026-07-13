@@ -1,4 +1,4 @@
-package storage
+package postgres
 
 import (
 	"database/sql"
@@ -9,7 +9,7 @@ import (
 	"github.com/ducanng/URLShortener/internal/logger"
 
 	"github.com/golang-migrate/migrate/v4"
-	"github.com/golang-migrate/migrate/v4/database/postgres"
+	migratepq "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 )
 
@@ -25,7 +25,7 @@ func newMigrator(db *sql.DB) (*migrate.Migrate, func(), error) {
 		return nil, nil, fmt.Errorf("iofs source: %w", err)
 	}
 
-	driver, err := postgres.WithInstance(db, &postgres.Config{})
+	driver, err := migratepq.WithInstance(db, &migratepq.Config{})
 	if err != nil {
 		return nil, nil, fmt.Errorf("postgres driver: %w", err)
 	}

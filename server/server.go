@@ -13,11 +13,12 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/domain"
-	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
+	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/shortcode"
-	"github.com/ducanng/URLShortener/storage"
+	"github.com/ducanng/URLShortener/proto/urlshortenerpb"
+	"github.com/ducanng/URLShortener/internal/repository/postgres"
+	"github.com/ducanng/URLShortener/internal/repository/redis"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -47,8 +48,9 @@ const (
 type service struct {
 	*logger.Logger
 	urlshortenerpb.URLShortenerServiceServer
-	Redis *storage.Redis
-	DB    *storage.SQLStore
+	Cache   *redis.Cache
+	Counter *redis.Counter
+	DB      *postgres.Repo
 }
 
 // GRPCServer wraps the gRPC server lifecycle (listen, serve, shutdown) and
@@ -63,7 +65,7 @@ type GRPCServer struct {
 // recovery), registers the URL service and the standard gRPC health
 // service. The listener bind is the only failure point so the only
 // returned error is from net.Listen.
-func NewGRPCServer(log *logger.Logger, redis *storage.Redis, db *storage.SQLStore) (*GRPCServer, error) {
+func NewGRPCServer(log *logger.Logger, cache *redis.Cache, counter *redis.Counter, db *postgres.Repo) (*GRPCServer, error) {
 	lis, err := net.Listen("tcp", grpcAddr)
 	if err != nil {
 		return nil, fmt.Errorf("listen %s: %w", grpcAddr, err)
@@ -80,9 +82,10 @@ func NewGRPCServer(log *logger.Logger, redis *storage.Redis, db *storage.SQLStor
 	)
 
 	urlshortenerpb.RegisterURLShortenerServiceServer(srv, &service{
-		Logger: log,
-		Redis:  redis,
-		DB:     db,
+		Logger:  log,
+		Cache:   cache,
+		Counter: counter,
+		DB:      db,
 	})
 
 	healthSrv := health.NewServer()
@@ -215,7 +218,7 @@ func (s *service) CreateURL(ctx context.Context, req *urlshortenerpb.CreateURLRe
 		return nil, err
 	}
 
-	id, err := s.Redis.NextID(ctx)
+	id, err := s.Counter.NextID(ctx)
 	if err != nil {
 		log.Errorf("getting next ID from Redis: %v", err)
 		return nil, status.Errorf(codes.Unavailable, "ID generation unavailable: %v", err)
@@ -231,7 +234,7 @@ func (s *service) CreateURL(ctx context.Context, req *urlshortenerpb.CreateURLRe
 		log.Errorf("saving to db: %v", err)
 		return nil, status.Errorf(codes.Internal, "failed to save URL: %v", err)
 	}
-	if err := s.Redis.Set(ctx, url); err != nil {
+	if err := s.Cache.Set(ctx, url); err != nil {
 		log.Warnf("failed to cache in redis, continuing: %v", err)
 	}
 	return &urlshortenerpb.Response{
@@ -255,7 +258,7 @@ func (s *service) CreateURL(ctx context.Context, req *urlshortenerpb.CreateURLRe
 func (s *service) GetURL(ctx context.Context, req *urlshortenerpb.GetURLRequest) (*urlshortenerpb.Response, error) {
 	log := s.WithContext(ctx)
 
-	url, err := s.Redis.Get(ctx, req.GetURL())
+	url, err := s.Cache.Get(ctx, req.GetURL())
 	if err != nil {
 		url, err = s.DB.Load(ctx, req.GetURL())
 		if err != nil {
@@ -265,7 +268,7 @@ func (s *service) GetURL(ctx context.Context, req *urlshortenerpb.GetURLRequest)
 			}
 			return nil, status.Errorf(codes.Internal, "failed to load URL: %v", err)
 		}
-		if cacheErr := s.Redis.Set(ctx, url); cacheErr != nil {
+		if cacheErr := s.Cache.Set(ctx, url); cacheErr != nil {
 			log.Warnf("failed to re-cache in redis: %v", cacheErr)
 		}
 	}
