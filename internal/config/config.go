@@ -27,6 +27,7 @@ type Config struct {
 type HTTPConfig struct {
 	Addr         string // public HTTP listen address, e.g. ":8080"
 	GRPCEndpoint string // in-process gRPC dial target the gateway/client use
+	SwaggerHost  string // Swagger "Try it out" host; "" = relative (swagger-ui uses window.location). Set to pin per-env, e.g. localhost:80 behind Nginx.
 }
 
 // DBConfig configures the PostgreSQL repository.
@@ -60,6 +61,9 @@ func Load() *Config {
 		HTTP: HTTPConfig{
 			Addr:         ":8080",
 			GRPCEndpoint: "localhost:50051",
+			// Empty when SWAGGER_HOST is unset → relative host (works in every
+			// environment). Set the env var to pin an absolute host.
+			SwaggerHost: os.Getenv("SWAGGER_HOST"),
 		},
 		GRPCAddr: ":50051",
 		DB:       DBConfig{DSN: os.Getenv("DB")},

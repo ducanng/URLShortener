@@ -7,7 +7,6 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/ducanng/URLShortener/docs"
 	"github.com/ducanng/URLShortener/internal/config"
 	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/metrics"

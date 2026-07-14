@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/ducanng/URLShortener/docs"
 	"github.com/ducanng/URLShortener/internal/config"
 	"github.com/ducanng/URLShortener/internal/logger"
 	"github.com/ducanng/URLShortener/internal/repository/postgres"
@@ -76,6 +77,13 @@ func NewServer(ctx context.Context, cfg config.HTTPConfig, corsCfg config.CORSCo
 
 	router.POST("/shorted", HandleCreateURL(gwMux))
 	router.GET("/info/:path", HandleGetURL(gwMux))
+
+	// SwaggerInfo is swaggo's sanctioned override point — gin-swagger has no
+	// host option and reads the spec live (ReadDoc) on each request. An empty
+	// Host makes swagger-ui use window.location.host (same-origin), which is
+	// correct for local dev (:8080) and Docker behind Nginx (:80). cfg.SwaggerHost
+	// overrides it when SWAGGER_HOST is set.
+	docs.SwaggerInfo.Host = cfg.SwaggerHost
 
 	router.GET("/docs", func(c *gin.Context) {
 		c.Redirect(http.StatusMovedPermanently, "/docs/index.html")
