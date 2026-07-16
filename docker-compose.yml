@@ -11,6 +11,10 @@ x-app: &app-base
   environment:
     - REDIS_ADDR=${REDIS_ADDR}
     - DB=${DB}
+    # Postgres pool cap per instance (SetMaxOpenConns/SetMaxIdleConns). Default
+    # 17 is a starting point (see docs/stress-test-findings.md), not measured
+    # for this exact host — override to tune/experiment without a rebuild.
+    - PG_MAX_OPEN_CONNS=${PG_MAX_OPEN_CONNS:-17}
     - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
     # Optional: unset → relative Swagger host (works everywhere). Set to pin,
     # e.g. localhost:80 behind Nginx. `:-` keeps it empty without a warning.

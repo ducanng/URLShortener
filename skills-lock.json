@@ -7,6 +7,12 @@
       "skillPath": "skills/docker-expert/SKILL.md",
       "computedHash": "0974b5f64fcd284c1bd662810e2388f7beb9be6784c597de4d0ad4213ccbd6af"
     },
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "computedHash": "781bd6d3f9b19f8c9af6b53d8d0e4876d0183841b565db34ca7092ffa412d111"
+    },
     "golang-benchmark": {
       "source": "samber/cc-skills-golang",
       "sourceType": "github",
@@ -264,6 +270,18 @@
       "sourceType": "github",
       "skillPath": "skills/golang-uber-fx/SKILL.md",
       "computedHash": "abf3e6052d04fc7d618df0bb2428c82c8eb0e14465bde1d66e3019cfc214b3dd"
+    },
+    "k6": {
+      "source": "grafana/skills",
+      "sourceType": "github",
+      "skillPath": "skills/grafana-k6/k6/SKILL.md",
+      "computedHash": "298c11bba3c8828c05886aa772c152dfb25fd3792c6a8a4327f4e3f927139426"
+    },
+    "k6-docs": {
+      "source": "grafana/skills",
+      "sourceType": "github",
+      "skillPath": "skills/grafana-k6/k6-docs/SKILL.md",
+      "computedHash": "b529654e4c061c3e8a8f5c66dd13d45f708185e61f47d164d3c69b3ea6790154"
     },
     "system-design": {
       "source": "wondelai/skills",

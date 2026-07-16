@@ -1,0 +1,35 @@
+# k6 load-testing runner. NOT part of the app/monitoring stacks — it is behind
+# the `k6` profile so it never auto-starts; invoke on demand via the Makefile
+# `k6-*` targets or:
+#   docker compose -f docker-compose.k6.yml run --rm k6 run \
+#     -o experimental-prometheus-rw /scripts/smoke.js
+#
+# It joins the shared external `urlshortener-net`, so it reaches the targets and
+# Prometheus by container name (nginx-lb, urlshortener-1/2, prometheus) with no
+# published ports.
+services:
+  k6:
+    image: grafana/k6:latest
+    profiles: ["k6"]
+    # Run as the host user so handleSummary() can write into ./reports. Override
+    # with K6_UID/K6_GID if your uid isn't 1000.
+    user: "${K6_UID:-1000}:${K6_GID:-1000}"
+    volumes:
+      - ./tests/k6:/scripts:ro
+      - ./reports:/reports
+    environment:
+      # Remote-write metrics into the existing Prometheus.
+      - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
+      # Full trend-stat set the official k6 dashboard (gnetId 19665) needs: its
+      # $quantile_stat picker regex is (min|max|count|sum|avg|med|p[0-9]+) and the
+      # "Requests by URL" table queries k6_http_req_duration_min. Missing min/med
+      # is why those panels showed "No data".
+      - K6_PROMETHEUS_RW_TREND_STATS=avg,min,med,max,p(90),p(95),p(99)
+      # Target: nginx-lb (end-to-end, default) or urlshortener-1:8080 (direct).
+      - BASE_URL=${BASE_URL:-http://nginx-lb}
+    networks:
+      - urlshortener-net
+
+networks:
+  urlshortener-net:
+    external: true

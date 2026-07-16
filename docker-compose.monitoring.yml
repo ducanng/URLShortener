@@ -11,6 +11,8 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=7d'
+      # Accept k6's remote-write metrics (docker-compose.k6.yml → this endpoint).
+      - '--web.enable-remote-write-receiver'
     deploy:
       resources:
         limits:

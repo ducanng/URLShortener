@@ -2,3 +2,6 @@
 .env
 tests/**
 !tests/**/*.py
+.claude/
+.vscode/
+/reports
