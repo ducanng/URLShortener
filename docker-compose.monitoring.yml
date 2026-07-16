@@ -99,6 +99,18 @@ services:
       - default
       - urlshortener-net
 
+  nginx-exporter:
+    image: nginx/nginx-prometheus-exporter:latest
+    container_name: nginx-exporter
+    restart: unless-stopped
+    ports:
+      - "9113:9113"
+    command:
+      - '--nginx.scrape-uri=http://nginx-lb:8081/nginx_status'
+    networks:
+      - default
+      - urlshortener-net
+
 volumes:
   prometheus-data:
   grafana-data:

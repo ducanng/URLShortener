@@ -63,6 +63,7 @@ func RunServer() {
 	if err != nil {
 		log.Fatalf("init postgres: %v", err)
 	}
+	metrics.RegisterDBStats(pgRepo.Client, "url_shortener")
 
 	// Seed the Redis global counter from PG MAX(id) — uses SET NX so it is a
 	// no-op when the counter already exists (normal restart). Fail fast when

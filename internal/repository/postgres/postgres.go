@@ -32,20 +32,19 @@ type Repo struct {
 	Client *sql.DB
 }
 
-// New opens a *sql.DB against cfg.DSN, sizes the connection pool for an
-// 8-vCPU SSD host, and returns the wrapper. Schema is NOT created here — run
-// `make migrate-up` before starting the app for the first time.
-//
-// Connection pool: (CPU×2)+spindle = 17 for an 8-vCPU SSD machine. Tune
-// SetMaxOpenConns/SetMaxIdleConns when running on smaller / larger hosts.
+// New opens a *sql.DB against cfg.DSN, sizes the connection pool per
+// cfg.MaxOpenConns (PG_MAX_OPEN_CONNS env, default 17 — the (CPU×2)+spindle
+// starting point for an 8-vCPU SSD host, see docs/stress-test-findings.md),
+// and returns the wrapper. Schema is NOT created here — run `make migrate-up`
+// before starting the app for the first time.
 func New(cfg config.DBConfig, log *logger.Logger) (*Repo, error) {
 	client, err := sql.Open("postgres", cfg.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("sql open: %w", err)
 	}
 
-	client.SetMaxOpenConns(17)
-	client.SetMaxIdleConns(17)
+	client.SetMaxOpenConns(cfg.MaxOpenConns)
+	client.SetMaxIdleConns(cfg.MaxOpenConns)
 	client.SetConnMaxLifetime(5 * time.Minute)
 	client.SetConnMaxIdleTime(1 * time.Minute)
 

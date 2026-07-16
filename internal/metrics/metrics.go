@@ -6,14 +6,28 @@
 package metrics
 
 import (
+	"database/sql"
 	"net/http"
 	"net/http/pprof"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // DefaultAddr is the listen address for the metrics server.
 const DefaultAddr = ":7070"
+
+// RegisterDBStats exposes the *sql.DB connection pool stats as Prometheus
+// metrics: go_sql_{max_open,open,in_use,idle}_connections and, most
+// importantly for saturation debugging, go_sql_wait_count_total /
+// go_sql_wait_duration_seconds_total — the direct signal for "how many
+// requests blocked waiting to borrow a pool connection, and for how long".
+// Call once per *sql.DB right after construction. dbName becomes the
+// db_name label so multiple pools stay distinguishable if one is added later.
+func RegisterDBStats(db *sql.DB, dbName string) {
+	prometheus.MustRegister(collectors.NewDBStatsCollector(db, dbName))
+}
 
 // NewServer returns an *http.Server that serves Prometheus metrics at /metrics
 // on the given addr. The caller is responsible for starting it (ListenAndServe)

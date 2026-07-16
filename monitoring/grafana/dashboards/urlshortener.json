@@ -172,6 +172,100 @@
         "defaults": { "unit": "ops" },
         "overrides": []
       }
+    },
+    {
+      "title": "PostgreSQL Pool: Connections",
+      "description": "go_sql_* from internal/metrics.RegisterDBStats (per-instance sql.DB.Stats()). open should stay under max (cap) — see PG_MAX_OPEN_CONNS in .env.example.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "targets": [
+        {
+          "expr": "sum by (instance) (go_sql_open_connections)",
+          "legendFormat": "{{instance}} open",
+          "refId": "A"
+        },
+        {
+          "expr": "sum by (instance) (go_sql_in_use_connections)",
+          "legendFormat": "{{instance}} in_use",
+          "refId": "B"
+        },
+        {
+          "expr": "sum by (instance) (go_sql_idle_connections)",
+          "legendFormat": "{{instance}} idle",
+          "refId": "C"
+        },
+        {
+          "expr": "sum by (instance) (go_sql_max_open_connections)",
+          "legendFormat": "{{instance}} max (cap)",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      }
+    },
+    {
+      "title": "PostgreSQL Pool: Wait Count / Duration",
+      "description": "Direct saturation signal: rising waits/s or avg wait time means requests are blocking to borrow a pool connection. See docs/k6-load-testing.md bottleneck playbook.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "targets": [
+        {
+          "expr": "sum by (instance) (rate(go_sql_wait_count_total[1m]))",
+          "legendFormat": "{{instance}} waits/s",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(go_sql_wait_duration_seconds_total[1m])) / sum(rate(go_sql_wait_count_total[1m]))",
+          "legendFormat": "avg wait time",
+          "refId": "B"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "avg wait time" },
+            "properties": [
+              { "id": "unit", "value": "s" },
+              { "id": "custom.axisPlacement", "value": "right" }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "title": "Nginx: Connections",
+      "description": "waiting = connections queued by Nginx itself (worker_connections / upstream keepalive pressure) — the direct signal for whether the LB, not just the app, is the bottleneck. Requires nginx-exporter (docker-compose.monitoring.yml) scraping the internal :8081/nginx_status stub_status endpoint.",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
+      "targets": [
+        {
+          "expr": "nginx_connections_active",
+          "legendFormat": "active",
+          "refId": "A"
+        },
+        {
+          "expr": "nginx_connections_reading",
+          "legendFormat": "reading",
+          "refId": "B"
+        },
+        {
+          "expr": "nginx_connections_writing",
+          "legendFormat": "writing",
+          "refId": "C"
+        },
+        {
+          "expr": "nginx_connections_waiting",
+          "legendFormat": "waiting (queued)",
+          "refId": "D"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": []
+      }
     }
   ],
   "schemaVersion": 39,

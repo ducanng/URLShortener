@@ -7,6 +7,7 @@ package config
 
 import (
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/joho/godotenv"
@@ -30,9 +31,16 @@ type HTTPConfig struct {
 	SwaggerHost  string // Swagger "Try it out" host; "" = relative (swagger-ui uses window.location). Set to pin per-env, e.g. localhost:80 behind Nginx.
 }
 
+// defaultPGMaxOpenConns is the starting-point pool cap per instance from the
+// PostgreSQL Wiki formula (physical_cores×2)+spindle for the current 8-vCPU
+// host — see docs/stress-test-findings.md. Not scientifically fitted to any
+// particular deployment; override via PG_MAX_OPEN_CONNS for tuning/experiments.
+const defaultPGMaxOpenConns = 17
+
 // DBConfig configures the PostgreSQL repository.
 type DBConfig struct {
-	DSN string // Postgres connection string (DB env var)
+	DSN          string // Postgres connection string (DB env var)
+	MaxOpenConns int    // pool cap for this instance (PG_MAX_OPEN_CONNS env, default 17)
 }
 
 // RedisConfig configures the Redis cache and counter.
@@ -66,10 +74,26 @@ func Load() *Config {
 			SwaggerHost: os.Getenv("SWAGGER_HOST"),
 		},
 		GRPCAddr: ":50051",
-		DB:       DBConfig{DSN: os.Getenv("DB")},
-		Redis:    RedisConfig{Addr: os.Getenv("REDIS_ADDR")},
-		CORS:     CORSConfig{AllowedOrigins: parseOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))},
+		DB: DBConfig{
+			DSN:          os.Getenv("DB"),
+			MaxOpenConns: parseIntOr(os.Getenv("PG_MAX_OPEN_CONNS"), defaultPGMaxOpenConns),
+		},
+		Redis: RedisConfig{Addr: os.Getenv("REDIS_ADDR")},
+		CORS:  CORSConfig{AllowedOrigins: parseOrigins(os.Getenv("CORS_ALLOWED_ORIGINS"))},
 	}
+}
+
+// parseIntOr parses raw as an int, returning fallback when raw is empty or
+// not a valid integer.
+func parseIntOr(raw string, fallback int) int {
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
 }
 
 // parseOrigins splits a comma-separated origin list, trimming whitespace and
